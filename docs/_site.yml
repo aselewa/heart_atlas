@@ -1,5 +1,5 @@
 name: "Heart Atlas Project"
-output_dir: 'docs/'
+output_dir: '.'
 navbar:
   title: "HeartAtlas"
   left:
