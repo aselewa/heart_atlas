@@ -1,0 +1,15 @@
+name: "Heart Atlas Project"
+output_dir: "../docs"
+navbar:
+  title: "HeartAtlas"
+  left:
+    - text: "Home"
+      href: index.html
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    theme: flatly
+    highlight: textmate
+    lib_dir: site_libs
+    self_contained: no
