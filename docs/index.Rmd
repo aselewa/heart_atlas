@@ -12,5 +12,5 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Here you will find links to analyses of the heart atlas project.
 
-* [Donor 03231](heart_single_cell.html')
+* [Donor 03231](heart_single_cell.html)
 
