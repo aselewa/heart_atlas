@@ -29,7 +29,7 @@ satac <- suppressMessages(loadArchRProject('../ArchR_project_03231/', showLogo =
 
 We can visualize the six different regions:
 
-```{r}
+```{r, fig.width=10, fig.height=5}
 palette <- setNames(brewer.pal(6, "Set2"), unique(srna$region))
 p1 <- DimPlot(srna, label = F, group.by='region', cols = palette) + ggClean() + ggtitle('scRNA-seq')
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'regions', palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle('scATAC-seq')
@@ -46,7 +46,7 @@ knitr::kable(markers.df, caption = 'Heart cell markers')
 ```
 
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, fig.width=10, fig.height=6}
 palette <- setNames(brewer.pal(9, "Set3"), levels(Idents(srna)))
 p1 <- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle('scRNA-seq')
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'CellTypes', palette = palette, legend = F, label = T) + ggtitle('scATAC-seq')
