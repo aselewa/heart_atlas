@@ -9,9 +9,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
+<meta name="author" content="Alan Selewa" />
 
 
-<title>Heart Atlas Project</title>
+<title>Heart Atlas - Donor 02336</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -362,19 +363,123 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Heart Atlas Project</h1>
+<h1 class="title toc-ignore">Heart Atlas - Donor 02336</h1>
+<h4 class="author">Alan Selewa</h4>
 
 </div>
 
 
 <div id="introduction" class="section level3">
 <h3>Introduction</h3>
-<p>Here you will find links to analyses of the heart atlas project.</p>
-<ul>
-<li><a href="heart_03231_analysis.Rmd">Donor 03231</a></li>
-<li><a href="heart_02207_analysis.Rmd">Donor 02207</a></li>
-<li><a href="heart_02336_analysis.Rmd">Donor 02336</a></li>
-</ul>
+<p>10X snRNA-seq and snATAC-seq was ran on 6 regions of the heart from 3 individuals. Here we explore the data from one donor (02336). Generally the data were good quality. We removed cells with small libraries (&lt; 1000 UMI in RNA, &lt; 3000 unique fragments in ATAC). We also removed doublets in ATAC-seq using ArchR's doublet removal scheme. For RNA-seq, we simply removed outlier libraries according to UMI count to account for doublets. We retain 28,663 nuclei in RNA-seq and 10,480 nuclei in ATAC-seq. ### Clustering</p>
+<p>The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in <code>scripts/</code>.</p>
+<pre class="r"><code>suppressMessages(library(Seurat))
+suppressMessages(library(ArchR))
+suppressMessages(source(&#39;../scripts/analysis_utils.R&#39;))
+
+srna &lt;- readRDS(&#39;../seurat/Heart_RNA_list_processed.rds&#39;)
+srna &lt;- srna$`02336`
+satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR_project_02336/&#39;, showLogo = F))</code></pre>
+<p>We can visualize the six different regions:</p>
+<pre class="r"><code>palette &lt;- setNames(brewer.pal(6, &quot;Set2&quot;), unique(srna$region))
+p1 &lt;- DimPlot(srna, label = F, group.by=&#39;region&#39;, cols = palette) + ggClean() + ggtitle(&#39;scRNA-seq&#39;)
+p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;regions&#39;, palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle(&#39;scATAC-seq&#39;)
+p1 + p2</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-2-1.png" width="960" /></p>
+<p>We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types:</p>
+<table>
+<caption>Heart cell markers</caption>
+<thead>
+<tr class="header">
+<th align="left">marker</th>
+<th align="left">CellType</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">TTN/MYBPC3</td>
+<td align="left">Cardiomyocytes</td>
+</tr>
+<tr class="even">
+<td align="left">MYH7</td>
+<td align="left">Vent. CM</td>
+</tr>
+<tr class="odd">
+<td align="left">NPPA</td>
+<td align="left">Atrial CM</td>
+</tr>
+<tr class="even">
+<td align="left">RGS5/ABCC9</td>
+<td align="left">Pericyte</td>
+</tr>
+<tr class="odd">
+<td align="left">MYH11/TAGLN</td>
+<td align="left">Smooth Muscle</td>
+</tr>
+<tr class="even">
+<td align="left">DCN/PDGFRA</td>
+<td align="left">Fibroblast</td>
+</tr>
+<tr class="odd">
+<td align="left">PECAM1/VWF</td>
+<td align="left">Endothelial</td>
+</tr>
+<tr class="even">
+<td align="left">PLP1</td>
+<td align="left">Neuronal</td>
+</tr>
+<tr class="odd">
+<td align="left">CDA8/LCK</td>
+<td align="left">Lymphoid</td>
+</tr>
+<tr class="even">
+<td align="left">CD14/FOLR2</td>
+<td align="left">Myeloid</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>palette &lt;- readRDS(&#39;../palette.rds&#39;)
+p1 &lt;- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle(&#39;scRNA-seq&#39;)
+p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;CellTypes&#39;, palette = palette, legend = F, label = T) + ggtitle(&#39;scATAC-seq&#39;)
+p1 + p2</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-4-1.png" width="960" /></p>
+<p>We do not see any atrial cardiomyocytes here despite having atrial samples. The cardiomyocytes that originate from the atrium seem to be ventricular CMs. To demonstrate this, we can visualize TNNT2,TTN (pan-cardiomyocyte markers), MYH7 (vent. CM marker), and NPPA (atrial marker expression). As we can see, there is no localization of NPPA gene, and all cardiomyocytes are ventricular.</p>
+<pre class="r"><code>FeaturePlot(srna, features = c(&#39;TNNT2&#39;,&#39;TTN&#39;,&#39;MYH7&#39;,&#39;NPPA&#39;))</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in proportion?</p>
+<pre class="r"><code>freq &lt;- table(Idents(srna))/length(Idents(srna))
+p1 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scRNA-seq&#39;)
+
+freq &lt;- table(satac$CellTypes)/length(satac$CellTypes)
+p2 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scATAC-seq&#39;)
+
+p1 + p2</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+</div>
+<div id="cre-discovery" class="section level3">
+<h3>CRE discovery</h3>
+<p>Here we run macs2 on ATAC-seq aggregates of each cell-type to discover cell-type specific peaks. Below shows the number of peaks called in total and for each cell type. As expected, most peaks are not protein coding.</p>
+<pre class="r"><code>peak.info &lt;- getPeakSet(satac)
+peak.info.per &lt;- peak.info@metadata$PeakCallSummary
+
+pal &lt;- c(&quot;Distal&quot; = &quot;#60BA64&quot;, &quot;Exonic&quot; = &quot;#73C6FF&quot;, &quot;Intronic&quot; = &quot;#620FA3&quot;, &quot;Promoter&quot; = &quot;#FFC554&quot;)
+ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat=&#39;identity&#39;) + labs(fill=&#39;&#39;) +
+  scale_fill_manual(values = pal) + ggClean() + ylab(&quot;Number of Peaks \n (10^3)&quot;)</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. Below we plot the relative accessiblility across cells for differentially accessible peaks. We only plot peaks with FDR &lt; 10% and log2 fold-change &gt; 0.5. Based on this filtering, we have discovered 170,0529 regulatory elements.</p>
+<pre class="r"><code>markersPeaks &lt;- readRDS(&#39;../ArchR_project_02336/PeakCalls/DA_markerPeaks.rds&#39;)
+suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = &quot;FDR &lt;= 0.1 &amp; Log2FC &gt;= 0.5&quot;, transpose = TRUE))</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="exploration-gtex-enrichment" class="section level3">
+<h3>Exploration: GTEx enrichment</h3>
+<p>GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below.</p>
+<pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/donor_02336_enrichment.txt&#39;, header=F, sep=&quot;&quot;)
+
+ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
+  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;)</code></pre>
+<p><img src="heart_02336_analysis_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched.</p>
 </div>
 
 

@@ -2,6 +2,7 @@ setwd('/project2/gca/aselewa/heart_atlas_project/')
 
 library(ArchR)
 source('scripts/analysis_utils.R')
+palette <- readRDS('palette.rds')
 
 ReduceAndCluster <- function(archr_project, var.features=25000, resolution=0.1, min.dist=0.3, batch_correct=NULL){
   archr_project <- addIterativeLSI(ArchRProj = archr_project, useMatrix = "TileMatrix", name = "IterativeLSI", iterations = 2, varFeatures = var.features, force = TRUE)
@@ -49,12 +50,31 @@ for(p in projects){
 # Donor-specific cell type assignment - cant be made generic
 projHeart <- loadArchRProject('ArchR_project_03231/')
 custom_archr_umap(archr_project = projHeart, group.by="Clusters", palette = brewer.pal(n=10, name="Set3"), pt.size=0.3, alpha=0.7, label=T, legend = T)
-
 cluster.ids <- paste0("C",1:9)
 new.ids <- c("Vent. CM", "Vent. CM","Vent. CM","Myeloid","Neuronal","Lymphoid","Endothelial", "Fibroblast","Pericyte")
 projHeart$CellTypes <- RenameIdentity(idents = projHeart$Clusters, from = cluster.ids, to = new.ids)
+p <- custom_archr_umap(archr_project = projHeart, group.by="CellTypes", palette = palette, pt.size=0.3, alpha=0.7, label=T, legend = T)
+ggsave(filename = "ArchR_project_03231/Plots/umap-CellTypes.png", plot = p, dpi=150, width=8, height=6)
+saveArchRProject(projHeart)
 
-p <- custom_archr_umap(archr_project = projHeart, group.by="CellTypes", palette = brewer.pal(n=10, name="Set3"), pt.size=0.3, alpha=0.7, label=T, legend = T)
-ggsave(filename = "ArchR_project_03231/umap-CellTypes.png", plot = p, dpi=150, width=8, height=6)
 
+# Donor-specific cell type assignment - cant be made generic
+projHeart <- loadArchRProject('ArchR_project_02207/')
+custom_archr_umap(archr_project = projHeart, group.by="Clusters", palette = brewer.pal(n=10, name="Set3"), pt.size=0.3, alpha=0.7, label=T, legend = T)
+cluster.ids <- paste0("C",1:10)
+new.ids <- c("Myeloid", "Lymphoid","Vent. CM","Vent. CM","Vent. CM","Endothelial","Fibroblast", "Fibroblast","Pericyte","Smooth Muscle")
+projHeart$CellTypes <- RenameIdentity(idents = projHeart$Clusters, from = cluster.ids, to = new.ids)
+p <- custom_archr_umap(archr_project = projHeart, group.by="CellTypes", palette = palette, pt.size=0.3, alpha=0.7, label=T, legend = T)
+ggsave(filename = "ArchR_project_02207/Plots/umap-CellTypes.png", plot = p, dpi=150, width=8, height=6)
+saveArchRProject(projHeart)
+
+
+# Donor-specific cell type assignment - cant be made generic
+projHeart <- loadArchRProject('ArchR_project_02336/')
+custom_archr_umap(archr_project = projHeart, group.by="Clusters", palette = brewer.pal(n=10, name="Set3"), pt.size=0.3, alpha=0.7, label=T, legend = T)
+cluster.ids <- paste0("C",1:7)
+new.ids <- c("Myeloid", "Lymphoid","Vent. CM","Vent. CM","Endothelial","Fibroblast","Pericyte")
+projHeart$CellTypes <- RenameIdentity(idents = projHeart$Clusters, from = cluster.ids, to = new.ids)
+p <- custom_archr_umap(archr_project = projHeart, group.by="CellTypes", palette = palette, pt.size=0.3, alpha=0.7, label=T, legend = T)
+ggsave(filename = "ArchR_project_02336/Plots/umap-CellTypes.png", plot = p, dpi=150, width=8, height=6)
 saveArchRProject(projHeart)

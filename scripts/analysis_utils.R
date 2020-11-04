@@ -66,10 +66,7 @@ make_freq_plot <- function(freq, palette){
 }
 
 RenameIdentity <- function(idents, from, to){
-  new.idents <- factor(plyr::mapvalues(idents,
-                                       from = from,
-                                       to = to),
-                       levels = sort(unique(to)))
+  new.idents <- plyr::mapvalues(idents, from = from, to = to)
   return(new.idents)
 }
 
