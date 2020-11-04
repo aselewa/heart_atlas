@@ -1,0 +1,42 @@
+---
+title: "Defining Cell-Type Specificy of eQTLs"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introduction
+
+Here I attempt to define cell-type specificy of genes/SNPs involved in eQTLs
+
+* Cell-type specificity of eQTL gene/SNP : a metric (or probability) that describes the extent to which an eGene (and its corresponding SNP) belong to a given cell-type 
+
+This cell-type specificity is not:
+
+* a measure of how specific the eQTL to this particular tissue/cell-type (the eGene/SNP could be active in other cell-types we do not observe, e.g. open set)
+* an absolute measure
+
+### Simple model of cell-type specificity
+
+Suppose we have a gene $X$ and a SNP $y$ that are form a significant eQTL in heart tissue. Furthermore, let $Y$ denote the peak/regulatory region in which $y$ resides. Then, we can define the probability that this gene/snp pair belong to a certain cell-type $c$ as follows:
+
+$$
+P(c = k| X,Y) \propto P(X,Y | c = k) P(c = k)
+$$
+
+* $P(c = k)$ represents the prior probability of observing cell-type $k$. This can come from the proportion of cell types
+* $P(X,Y | c = k)$ is the joint probability of gene $X$, peak $Y$ under cell-type $k$
+
+These probabilities can be obtained by fitting a topic model, e.g. `fastTopics`
+
+Note that $\sum_{k=1}^{K} P(c = k | X,Y) = 1$, therefor our cell-type specificity can be interpreted as a probability.
+
+### Procedure 
+
+1. Integrate scRNA-seq and scATAC-seq
+2. Infer joint factors for each major cell-type using Poisson topic model 
+3. Extract word-topic distributions
+4. Compute posterior of each 
+

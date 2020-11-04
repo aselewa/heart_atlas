@@ -12,7 +12,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Here you will find links to analyses of the heart atlas project.
 
+#### Single-cell Analyses
+
 * [Donor 03231](heart_03231_analysis.html)
 * [Donor 02207](heart_02207_analysis.html)
 * [Donor 02336](heart_02336_analysis.html)
 
+#### Metrics/methods
+
+* [Notes on cell-type specificity of eQTLs](cell_type_specificity.html)
+* [Evaluating Seurat integration in PBMCs](https://aselewa.github.io/multiomic_integration/)

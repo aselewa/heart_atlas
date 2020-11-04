@@ -11,7 +11,7 @@
 
 
 
-<title>Heart Atlas Project</title>
+<title>Defining Cell-Type Specificy of eQTLs</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -362,29 +362,44 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Heart Atlas Project</h1>
+<h1 class="title toc-ignore">Defining Cell-Type Specificy of eQTLs</h1>
 
 </div>
 
 
 <div id="introduction" class="section level3">
 <h3>Introduction</h3>
-<p>Here you will find links to analyses of the heart atlas project.</p>
-<div id="single-cell-analyses" class="section level4">
-<h4>Single-cell Analyses</h4>
+<p>Here I attempt to define cell-type specificy of genes/SNPs involved in eQTLs</p>
 <ul>
-<li><a href="heart_03231_analysis.html">Donor 03231</a></li>
-<li><a href="heart_02207_analysis.html">Donor 02207</a></li>
-<li><a href="heart_02336_analysis.html">Donor 02336</a></li>
+<li>Cell-type specificity of eQTL gene/SNP : a metric (or probability) that describes the extent to which an eGene (and its corresponding SNP) belong to a given cell-type</li>
+</ul>
+<p>This cell-type specificity is not:</p>
+<ul>
+<li>a measure of how specific the eQTL to this particular tissue/cell-type (the eGene/SNP could be active in other cell-types we do not observe, e.g. open set)</li>
+<li>an absolute measure</li>
 </ul>
 </div>
-<div id="metricsmethods" class="section level4">
-<h4>Metrics/methods</h4>
+<div id="simple-model-of-cell-type-specificity" class="section level3">
+<h3>Simple model of cell-type specificity</h3>
+<p>Suppose we have a gene <span class="math inline">\(X\)</span> and a SNP <span class="math inline">\(y\)</span> that are form a significant eQTL in heart tissue. Furthermore, let <span class="math inline">\(Y\)</span> denote the peak/regulatory region in which <span class="math inline">\(y\)</span> resides. Then, we can define the probability that this gene/snp pair belong to a certain cell-type <span class="math inline">\(c\)</span> as follows:</p>
+<p><span class="math display">\[
+P(c = k| X,Y) \propto P(X,Y | c = k) P(c = k)
+\]</span></p>
 <ul>
-<li><a href="cell_type_specificity.html">Notes on cell-type specificity of eQTLs</a></li>
-<li><a href="https://aselewa.github.io/multiomic_integration/">Evaluating Seurat integration in PBMCs</a></li>
+<li><span class="math inline">\(P(c = k)\)</span> represents the prior probability of observing cell-type <span class="math inline">\(k\)</span>. This can come from the proportion of cell types</li>
+<li><span class="math inline">\(P(X,Y | c = k)\)</span> is the joint probability of gene <span class="math inline">\(X\)</span>, peak <span class="math inline">\(Y\)</span> under cell-type <span class="math inline">\(k\)</span></li>
 </ul>
+<p>These probabilities can be obtained by fitting a topic model, e.g. <code>fastTopics</code></p>
+<p>Note that <span class="math inline">\(\sum_{k=1}^{K} P(c = k | X,Y) = 1\)</span>, therefor our cell-type specificity can be interpreted as a probability.</p>
 </div>
+<div id="procedure" class="section level3">
+<h3>Procedure</h3>
+<ol style="list-style-type: decimal">
+<li>Integrate scRNA-seq and scATAC-seq</li>
+<li>Infer joint factors for each major cell-type using Poisson topic model</li>
+<li>Extract word-topic distributions</li>
+<li>Compute posterior of each</li>
+</ol>
 </div>
 
 
