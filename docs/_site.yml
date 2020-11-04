@@ -1,4 +1,5 @@
 name: "Heart Atlas Project"
+author: "Alan Selewa"
 output_dir: '.'
 navbar:
   title: "HeartAtlas"
