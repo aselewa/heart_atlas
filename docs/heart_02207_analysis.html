@@ -388,7 +388,7 @@ satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR_project_02207/&#39;,
 p1 &lt;- DimPlot(srna, label = F, group.by=&#39;region&#39;, cols = palette) + ggClean() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;regions&#39;, palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-41-1.png" width="960" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-2-1.png" width="960" /></p>
 <p>We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types:</p>
 <table>
 <caption>Heart cell markers</caption>
@@ -445,10 +445,10 @@ p1 + p2</code></pre>
 p1 &lt;- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;CellTypes&#39;, palette = palette, legend = F, label = T) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-43-1.png" width="960" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-4-1.png" width="960" /></p>
 <p>We do not see any atrial cardiomyocytes here despite having atrial samples. The cardiomyocytes that originate from the atrium seem to be ventricular CMs. To demonstrate this, we can visualize TNNT2,TTN (pan-cardiomyocyte markers), MYH7 (vent. CM marker), and NPPA (atrial marker expression). As we can see, there is no localization of NPPA gene, and all cardiomyocytes are ventricular.</p>
 <pre class="r"><code>FeaturePlot(srna, features = c(&#39;TNNT2&#39;,&#39;TTN&#39;,&#39;MYH7&#39;,&#39;NPPA&#39;))</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-44-1.png" width="672" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
 <p>We recover 8 cell types in scRNA-seq and 7 in scATAC-seq above. How do they compare in proportion?</p>
 <pre class="r"><code>freq &lt;- table(Idents(srna))/length(Idents(srna))
 p1 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scRNA-seq&#39;)
@@ -457,7 +457,7 @@ freq &lt;- table(satac$CellTypes)/length(satac$CellTypes)
 p2 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scATAC-seq&#39;)
 
 p1 + p2</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-45-1.png" width="672" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
 </div>
 <div id="cre-discovery" class="section level3">
 <h3>CRE discovery</h3>
@@ -468,11 +468,11 @@ peak.info.per &lt;- peak.info@metadata$PeakCallSummary
 pal &lt;- c(&quot;Distal&quot; = &quot;#60BA64&quot;, &quot;Exonic&quot; = &quot;#73C6FF&quot;, &quot;Intronic&quot; = &quot;#620FA3&quot;, &quot;Promoter&quot; = &quot;#FFC554&quot;)
 ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat=&#39;identity&#39;) + labs(fill=&#39;&#39;) +
   scale_fill_manual(values = pal) + ggClean() + ylab(&quot;Number of Peaks \n (10^3)&quot;)</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-46-1.png" width="672" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
 <p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. Below we plot the relative accessiblility across cells for differentially accessible peaks. We only plot peaks with FDR &lt; 10% and log2 fold-change &gt; 0.5.</p>
 <pre class="r"><code>markersPeaks &lt;- readRDS(&#39;../ArchR_project_02207/PeakCalls/DA_markerPeaks.rds&#39;)
 suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = &quot;FDR &lt;= 0.1 &amp; Log2FC &gt;= 0.5&quot;, transpose = TRUE))</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-47-1.png" width="672" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
 </div>
 <div id="exploration-gtex-enrichment" class="section level3">
 <h3>Exploration: GTEx enrichment</h3>
@@ -481,7 +481,7 @@ suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = &quot;FDR &
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + xlim(c(0,2.5)) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;)</code></pre>
-<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-48-1.png" width="672" /></p>
+<p><img src="heart_02207_analysis_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
 <p>As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched.</p>
 </div>
 

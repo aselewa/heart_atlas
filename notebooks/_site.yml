@@ -1,6 +1,6 @@
 name: "Heart Atlas Project"
 author: "Alan Selewa"
-output_dir: '.'
+output_dir: '../docs'
 navbar:
   title: "HeartAtlas"
   left:
