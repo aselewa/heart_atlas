@@ -381,21 +381,21 @@ qc.df &lt;- Reduce(rbind, df.list)</code></pre>
 <div id="barcode-rank-plot" class="section level4">
 <h4>Barcode-rank plot</h4>
 <p>This plot shows each barcode's UMI count and rank. It is useful for distinguishing actual cells vs background.</p>
-<pre class="r"><code>ggplot(qc.df, aes(x = rank, y=umi, color=Donor)) + geom_line(aes(linetype = Type), size=1.5) + ggClean() +
+<pre class="r"><code>ggplot(qc.df, aes(x = rank, y=umi, color=Donor)) + geom_line(aes(linetype = Type)) + ggClean() +
   scale_y_log10(breaks = scales::trans_breaks(&quot;log10&quot;, function(x) 10^x),
                 labels = scales::trans_format(&quot;log10&quot;, scales::math_format(10^.x))) +
   scale_x_log10(breaks = scales::trans_breaks(&quot;log10&quot;, function(x) 10^x),
                 labels = scales::trans_format(&quot;log10&quot;, scales::math_format(10^.x))) +
   scale_linetype_manual(values = c(&quot;dashed&quot;,&quot;solid&quot;)) + 
   xlab(&#39;Barcodes&#39;) + ylab(&#39;UMI&#39;)</code></pre>
-<p><img src="quality_control_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
 </div>
 <div id="features-vs-umi-count" class="section level4">
 <h4>Features vs UMI count</h4>
 <p>This plot shows how many genes are detected at each level of UMI count. We use UMI count as a proxy for read count which we do not record directly. This plot is useful for setting lower and upper limits on features as to filter doublets and background barcodes.</p>
 <pre class="r"><code>qc.df &lt;- data.frame(umi = srna$nCount_RNA/10^4, features=srna$nFeature_RNA/1000, Donor=srna$individual)
 ggplot(qc.df, aes(x=umi, y=features, color=Donor)) + geom_point(alpha=0.5) + ggClean() + xlab(expression(&#39;UMI (&#39;%*% 10^4*&#39;)&#39;)) + ylab(expression(&#39;Features (&#39; %*% 10^3*&#39;)&#39;))</code></pre>
-<p><img src="quality_control_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
 </div>
 </div>
 <div id="scatac-seq" class="section level3">
@@ -415,7 +415,7 @@ ggplot(qc.df, aes(x=umi, y=features, color=Donor)) + geom_point(alpha=0.5) + ggC
     theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())</code></pre>
-<p><img src="quality_control_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
 </div>
 <div id="fragment-size-distribution" class="section level4">
 <h4>Fragment size distribution</h4>
@@ -437,7 +437,7 @@ size.df &lt;- size.df[size.df$sizes &lt; 1000, ]</code></pre>
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank()) +
   xlab(&#39;Fragment Size&#39;)</code></pre>
-<p><img src="quality_control_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
 </div>
 </div>
 
