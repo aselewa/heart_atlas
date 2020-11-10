@@ -11,10 +11,10 @@ if(length(args) > 0){
 }
 
 # GLOBAL PARAMETERS
-ATAC_SAMPLES <- c(paste0('MW200804A',c('A','B','C','D')),
-                 paste0("SP-HE-HE200915ATAC-",c('175ATAC','359ATAC','360ATAC','397ATAC')),
-                 paste0("SP-HE-MW200928E2ATAC-",c('175ATAC','366ATAC','367ATAC','407ATAC')),
-                 paste0("SP-HE-MW200928E1ATAC-",c('396ATAC','398ATAC','406ATAC','408ATAC','411ATAC','413ATAC')))
+ATAC_SAMPLES <- c("MW200804AA","MW200804AB","MW200804AC","MW200804AD",
+                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","SP-HE200915ATAC-360ATAC","SP-HE200915ATAC-397ATAC",
+                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-MW200928E2ATAC-366ATAC","SP-MW200928E2ATAC-367ATAC","SP-MW200928E2ATAC-407ATAC",
+                 "SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC","SP-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC")
 
 ATAC_INDIVIDUALS <- c(rep("02207",4),rep("02336",4),rep("03231",4),rep("02336",2),rep("03231",2),rep("02207",2))
 
@@ -22,6 +22,14 @@ ATAC_REGIONS <- c("Septum","Right Atrium","Right Ventricle","Left Ventricle",
                  "Septum","Right Atrium","Right Ventricle","Left Ventricle",
                  "Septum","Right Atrium","Right Ventricle","Left Ventricle",
                  rep(c("Left Atrium","Apex"), 3))
+
+getFragmentSizes <- function(achr_project){
+  project_arrows <- getArrowFiles(achr_project)
+  gr.list <- sapply(project_arrows, function(x){getFragmentsFromArrow(x)}) 
+  sizes <-  sapply(gr.list, function(x){end(x)-start(x)})
+  sizes <- unlist(sizes, use.names = FALSE)
+  return(sizes)
+}
 
 make_meta_df <- function(){
   sat <- c()
@@ -36,8 +44,8 @@ make_meta_df <- function(){
     sat <- c(sat, curr_sat)
     ncells <- c(ncells, meta$cells_detected)
   }
-  meta.df <- data.frame(saturation=sat, ncells=ncells, sample=ATAC_SAMPLES, individual=RNA_INDIVIDUALS, regions=RNA_REGIONS)
-  saveRDS(object = meta.df, file = 'ArchR_project_heart/ATAC_metadata_df.rds')
+  meta.df <- data.frame(saturation=sat, ncells=ncells, sample=ATAC_SAMPLES, individual=ATAC_INDIVIDUALS, regions=ATAC_REGIONS)
+  saveRDS(object = meta.df, file = 'ATAC_metadata_df.rds')
 }
 
 make_ATAC_arrows <- function(){
@@ -69,19 +77,22 @@ main <- function() {
   individuals <- unique(ATAC_INDIVIDUALS)
   for(i in 1:length(individuals)){
     curr_samples <- ATAC_SAMPLES[ATAC_INDIVIDUALS == individuals[i]]
-  
+    projDir <- paste0("ArchR_project_",individuals[i],'_2')
+    
     projHeart <- ArchRProject(
-      ArrowFiles = paste0("ArchR_ArrowFiles/",curr_samples, ".arrow"),
-      outputDirectory = paste0("ArchR_project_",individuals[i]),
-      copyArrows = TRUE 
-    )  
+       ArrowFiles = paste0("ArchR_ArrowFiles/",curr_samples, ".arrow"),
+       outputDirectory = projDir,
+       copyArrows = TRUE 
+    )
     projHeart$individual <- individuals[i]
     projHeart$regions <- plyr::mapvalues(x = projHeart$Sample, from = curr_samples, to = ATAC_REGIONS[ATAC_INDIVIDUALS == individuals[i]])
     
     saveArchRProject(projHeart)
     
+    frag.sizes <- getFragmentSizes(projHeart)
+    saveRDS(frag.sizes, paste0(projDir, '/fragment_sizes.rds'))
+    
   }
-  
 }
 
 if(length(args)>0){

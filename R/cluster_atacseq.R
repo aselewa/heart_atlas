@@ -1,10 +1,11 @@
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 
 library(ArchR)
-source('scripts/analysis_utils.R')
+source('R/analysis_utils.R')
 palette <- readRDS('palette.rds')
 
-ReduceAndCluster <- function(archr_project, var.features=25000, resolution=0.1, min.dist=0.3, batch_correct=NULL){
+ReduceAndCluster <- function(archr_project, var.features=50000, min.dist=0.3, resolution=0.1, batch_correct=NULL){
+  
   archr_project <- addIterativeLSI(ArchRProj = archr_project, useMatrix = "TileMatrix", name = "IterativeLSI", iterations = 2, varFeatures = var.features, force = TRUE)
   
   do_batch_correction <- !is.null(batch_correct)
@@ -20,28 +21,27 @@ ReduceAndCluster <- function(archr_project, var.features=25000, resolution=0.1, 
 run_workflow <- function(project_path){
 
   projHeart <- suppressMessages(loadArchRProject(path = project_path))
-  projHeart <- addDoubletScores(input = projHeart, k = 10, knnMethod = "UMAP", LSIMethod = 1)
-  projHeart <- ArchR::subsetCells(projHeart, cellNames = projHeart$cellNames[!is.na(projHeart$DoubletScore)])
-  projHeart <- ArchR::subsetCells(projHeart, cellNames = projHeart$cellNames[projHeart$DoubletScore < 2])
-  
+  projHeart <- filterDoublets(projHeart, cutScore = 10)
+   
   projHeart <- ReduceAndCluster(archr_project = projHeart, resolution = 0.45)
   projHeart <- addImputeWeights(projHeart)
-  
+
   saveArchRProject(projHeart)
-  
+
   markers <- c("TNNT2","MYBPC3","MYH7","NPPA","RGS5","ABCC9","MYH11","TAGLN","DCN","PDGFRA","PECAM1","VWF","PLP1","CD8A","LCK","CD14","FOLR2")
   p <- plotEmbedding(ArchRProj = projHeart, colorBy = "GeneScoreMatrix", name = markers,embedding = "UMAP")
   plotPDF(plotList = p, name = "Plot-UMAP-Marker-Genes-W-Imputation.pdf", ArchRProj = projHeart, addDOC = FALSE, width = 5, height = 5)
-  
-  p <- custom_archr_umap(archr_project = projHeart, group.by="Clusters", palette = brewer.pal(n=10, name="Set3"), pt.size=0.3, alpha=0.7, label=F, legend = T)
+
+  p <- custom_archr_umap(archr_project = projHeart, group.by="Clusters", pt.size=0.3, alpha=0.7, label=F, legend = T)
   ggsave(filename = paste0(project_path,"/Plots/umap-clusters.png"), plot = p, dpi=150, width=8, height=6)
   
   p <- getQCPlots(projHeart)
   ggsave(filename = paste0(project_path,"/Plots/VlnQCPlots.png"), plot = p, dpi=150, width=14, height=10)
+  
 }
 
 # reduce dim and cluster for each project
-projects <- list.files(pattern = "ArchR_project_*")
+projects <- list.files(pattern = "*_2")
 for(p in projects){
   print(paste0('Running workflow on ',p,'...'))
   run_workflow(p)

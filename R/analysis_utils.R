@@ -3,13 +3,18 @@ library(patchwork)
 library(RColorBrewer)
 library(dplyr)
 
-ggClean <- function(){
-  theme_bw() + 
+ggClean <- function(rotate_axis=FALSE){
+  tm <- theme_bw() + 
     theme(text = element_text(size=18),
-          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
           panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank(),
           panel.background = element_rect(colour = "black", size=1))
+  if(rotate_axis){
+    tm <- tm + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  }
+  
+  return(tm)
+  
 }
 
 LegendOff <- function(){
@@ -28,7 +33,7 @@ pullGeneScoreMatrix <- function(archr_project){
   return(gene.score.mat.norm)
 }
 
-custom_archr_umap <- function(archr_project, group.by="regions", alpha=1, pt.size=1, palette, legend=TRUE, label=FALSE){
+custom_archr_umap <- function(archr_project, group.by="regions", alpha=1, pt.size=1, palette=NULL, legend=TRUE, label=FALSE){
   
   cellColData <- as.data.frame(archr_project@cellColData)
   umap.df <- as.data.frame(archr_project@embeddings$UMAP$df)
@@ -36,7 +41,10 @@ custom_archr_umap <- function(archr_project, group.by="regions", alpha=1, pt.siz
   
   umap.df[,"meta"] <- cellColData[,group.by, drop=T]
   p <- ggplot(umap.df, aes(x=UMAP_1, y=UMAP_2, color=meta)) + geom_point(size=pt.size, alpha=alpha) + theme_set(theme_grey()) + ggClean()
-  p <- p + scale_color_manual(values = palette)
+  
+  if(!is.null(palette)){
+    p <- p + scale_color_manual(values = palette)
+  }
   
   if(!legend){
     p <- p + LegendOff()

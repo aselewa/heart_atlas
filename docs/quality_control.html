@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>QC</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/flatly.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 60px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h2 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h3 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h4 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h5 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h6 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">HeartAtlas</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">QC</h1>
+
+</div>
+
+
+<div id="scrna-seq" class="section level3">
+<h3>scRNA-seq</h3>
+<pre class="r"><code>srna &lt;- readRDS(&#39;../seurat/Heart_Seurat_RNA_all_samples_raw.RDS&#39;)</code></pre>
+<pre class="r"><code>donors &lt;- c(&quot;02207&quot;,&quot;02336&quot;,&quot;03231&quot;)
+qc.df &lt;- data.frame(umi = srna$nCount_RNA, Donor=srna$individual)
+df.list &lt;- list()
+for(d in donors){
+  curr.df &lt;- qc.df %&gt;% filter(Donor == d) %&gt;% arrange(-umi) %&gt;% mutate(rank = 1:nrow(.)) %&gt;% mutate(Type=ifelse(umi &gt; 1000, &#39;Cell&#39;,&#39;Background&#39;))
+  df.list[[d]] &lt;- curr.df
+}
+qc.df &lt;- Reduce(rbind, df.list)</code></pre>
+<div id="barcode-rank-plot" class="section level4">
+<h4>Barcode-rank plot</h4>
+<p>This plot shows each barcode's UMI count and rank. It is useful for distinguishing actual cells vs background.</p>
+<pre class="r"><code>ggplot(qc.df, aes(x = rank, y=umi, color=Donor)) + geom_line(aes(linetype = Type), size=1.5) + ggClean() +
+  scale_y_log10(breaks = scales::trans_breaks(&quot;log10&quot;, function(x) 10^x),
+                labels = scales::trans_format(&quot;log10&quot;, scales::math_format(10^.x))) +
+  scale_x_log10(breaks = scales::trans_breaks(&quot;log10&quot;, function(x) 10^x),
+                labels = scales::trans_format(&quot;log10&quot;, scales::math_format(10^.x))) +
+  scale_linetype_manual(values = c(&quot;dashed&quot;,&quot;solid&quot;)) + 
+  xlab(&#39;Barcodes&#39;) + ylab(&#39;UMI&#39;)</code></pre>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+</div>
+<div id="features-vs-umi-count" class="section level4">
+<h4>Features vs UMI count</h4>
+<p>This plot shows how many genes are detected at each level of UMI count. We use UMI count as a proxy for read count which we do not record directly. This plot is useful for setting lower and upper limits on features as to filter doublets and background barcodes.</p>
+<pre class="r"><code>qc.df &lt;- data.frame(umi = srna$nCount_RNA/10^4, features=srna$nFeature_RNA/1000, Donor=srna$individual)
+ggplot(qc.df, aes(x=umi, y=features, color=Donor)) + geom_point(alpha=0.5) + ggClean() + xlab(expression(&#39;UMI (&#39;%*% 10^4*&#39;)&#39;)) + ylab(expression(&#39;Features (&#39; %*% 10^3*&#39;)&#39;))</code></pre>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+</div>
+</div>
+<div id="scatac-seq" class="section level3">
+<h3>scATAC-seq</h3>
+<pre class="r"><code>d22 &lt;- loadArchRProject(&#39;../ArchR_project_02207/&#39;, showLogo = F)</code></pre>
+<pre><code>## Successfully loaded ArchRProject!</code></pre>
+<pre class="r"><code>d23 &lt;- loadArchRProject(&#39;../ArchR_project_02336/&#39;, showLogo = F)</code></pre>
+<pre><code>## Successfully loaded ArchRProject!</code></pre>
+<pre class="r"><code>d32 &lt;- loadArchRProject(&#39;../ArchR_project_03231/&#39;, showLogo = F)</code></pre>
+<pre><code>## Successfully loaded ArchRProject!</code></pre>
+<div id="tss-enrichment" class="section level4">
+<h4>TSS Enrichment</h4>
+<p>This shows the distribution of TSS enrichment across cells. Cells with low value of TSS enrichment are low quality.</p>
+<pre class="r"><code>tss.df &lt;- data.frame(tss.enrich = c(d22$TSSEnrichment, d23$TSSEnrichment, d32$TSSEnrichment), 
+                     Donor = c(rep(&#39;02207&#39;, length(d22$cellNames)), rep(&#39;02336&#39;, length(d23$cellNames)), rep(&#39;03231&#39;, length(d32$cellNames))))</code></pre>
+<pre class="r"><code>ggplot(tss.df) + stat_density(aes(x=tss.enrich, color=Donor), geom=&quot;line&quot;, position=&quot;identity&quot;, size=1.5) + ggClean() + xlab(&#39;TSS Enrichment&#39;) + 
+    theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())</code></pre>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+</div>
+<div id="fragment-size-distribution" class="section level4">
+<h4>Fragment size distribution</h4>
+<p>This plot tells us the fragment size distribution. A good ATAC-seq library will have two peaks: one around ~50 bp representing the pitch of DNA and one around ~150 representing actual open chromatin peaks.</p>
+<pre class="r"><code>n_down_sample &lt;- 10^6
+
+d22.sizes &lt;- readRDS(&#39;../ArchR_project_02207/fragment_sizes.rds&#39;)
+d22.sizes &lt;- d22.sizes[sample(1:length(d22.sizes), n_down_sample, replace=F)]
+
+d23.sizes &lt;- readRDS(&#39;../ArchR_project_02336/fragment_sizes.rds&#39;)
+d23.sizes &lt;- d23.sizes[sample(1:length(d23.sizes), n_down_sample, replace=F)]
+
+d32.sizes &lt;- readRDS(&#39;../ArchR_project_03231/fragment_sizes.rds&#39;)
+d32.sizes &lt;- d32.sizes[sample(1:length(d32.sizes), n_down_sample, replace=F)]</code></pre>
+<pre class="r"><code>size.df &lt;- data.frame(sizes=c(d22.sizes, d23.sizes, d32.sizes), Donor=c(rep(&quot;02207&quot;,length(d22.sizes)), rep(&quot;02336&quot;,length(d23.sizes)), rep(&quot;03231&quot;, length(d32.sizes))))
+size.df &lt;- size.df[size.df$sizes &lt; 1000, ]</code></pre>
+<pre class="r"><code>ggplot(size.df) + stat_density(aes(x=sizes, color=Donor), geom=&quot;line&quot;, position=&quot;identity&quot;, size=1.5) + ggClean() + 
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  xlab(&#39;Fragment Size&#39;)</code></pre>
+<p><img src="quality_control_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

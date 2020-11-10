@@ -46,7 +46,7 @@ knitr::kable(markers.df, caption = 'Heart cell markers')
 
 
 ```{r, warning=FALSE, fig.width=10, fig.height=6}
-palette <- readRDS('../palette.rds')
+palette <- readRDS('palette.rds')
 p1 <- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle('scRNA-seq')
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'CellTypes', palette = palette, legend = F, label = T) + ggtitle('scATAC-seq')
 p1 + p2
