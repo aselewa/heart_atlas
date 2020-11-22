@@ -22,7 +22,7 @@ LegendOff <- function(){
 }
 
 qcVlnPlot <- function(df, x,y,fill){
-  ggplot(df, aes_string(x=x, y=y, fill=fill)) + geom_violin() + geom_jitter(shape=16, size=0.5, position=position_jitter(0.4)) + ggClean() + xlab("") + LegendOff()
+  ggplot(df, aes_string(x=x, y=y, fill=fill)) + geom_violin() + geom_jitter(shape=16, size=0.5, position=position_jitter(0.4)) + ggClean(rotate_axis=T) + xlab("") + LegendOff()
 }
 
 pullGeneScoreMatrix <- function(archr_project){
@@ -70,7 +70,7 @@ getQCPlots <- function(archr_project){
 make_freq_plot <- function(freq, palette){
   type.freq <- data.frame(freq=as.numeric(freq), celltype=factor(names(freq)))
   p <- ggplot(type.freq, aes(x=celltype, y=freq, fill=celltype)) + geom_bar(position = "dodge", stat="identity", color="black") + 
-    ggClean() + scale_fill_manual(values = palette) + xlab("") + ylab("Prop. Cells")
+    ggClean(rotate_axis = T) + scale_fill_manual(values = palette) + xlab("") + ylab("Prop. Cells")
 }
 
 RenameIdentity <- function(idents, from, to){
@@ -78,4 +78,93 @@ RenameIdentity <- function(idents, from, to){
   return(new.idents)
 }
 
+GRToString <- function(gr){
+  paste0(as.character(seqnames(gr)),':',start(gr),'-',end(gr))
+}
+
+StringToGR <- function(st){
+  chr <- sub(pattern = ':.*', replacement = "", st)
+  st.end <- sub(pattern = '.*:', replacement = "", st)
+  s <- as.numeric(sub(pattern = '-.*', replacement = "", st.end))
+  e <- as.numeric(sub(pattern = '.*-', replacement = "", st.end))
+  gr <- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = s, end = e))
+  return(gr)
+}
+
+generateBits <- function(n){
+  max_n <- 2^n - 1
+  bitList <- list()
+  for(i in 1:max_n){
+    bitList[[i]] <- as.integer(intToBits(i)[1:n])
+  }
+  return(bitList)
+}
+
+getIdealAccess <- function(cell_type_vec){
+  
+  cellTypes <- unique(cell_type_vec)
+  nCellTypes <- length(cellTypes)
+  profiles <- generateBits(nCellTypes)
+  nProfiles <- length(profiles)
+  
+  ideal.mat <- matrix(0, nrow = nProfiles, ncol = length(cell_type_vec))
+
+  for(i in 1:nProfiles){
+    curr.profile <- profiles[[i]]
+    if(sum(curr.profile) >= 3)
+    toInclude <- which(curr.profile == 1)
+    cellTypesIn <- cellTypes[toInclude]
+    for(type in cellTypesIn){
+      ideal.mat[i,] <- ideal.mat[i,] + 1*(cell_type_vec==type)
+    }
+  }
+  return(ideal.mat)
+  
+}
+
+multi.jaccard.index <- function(X, y){
+  stopifnot(is.matrix(X))
+  stopifnot(dim(X)[1] == length(y))
+  intsct <- X * y
+  yunion <- X | y
+  colSums(intsct) / colSums(yunion)
+}
+
+peakToCluster <- function(peak.mat, ideal.mat){
+  
+  classify.mat <- matrix(0, nrow = nrow(peak.mat), ncol = nrow(ideal.mat))
+  ideal.mat.t <- t(ideal.mat)
+  
+  for(i in 1:nrow(peak.mat)){
+    if(i %% 1000 == 0){
+      print(i)
+    }
+    x <- peak.mat[i,,drop=T]
+    dists <- multi.jaccard.index(ideal.mat.t, x)
+    classify.mat[i,] <- dists
+  }
+  return(classify.mat)
+}
+
+
+peakToClusterBatch <- function(peak.mat, ideal.mat, chunk.size=1e5){
+  N <- nrow(peak.mat)
+  k <- floor(N/1e5)
+  classify.mat.list <- list()
+  for(i in 1:k){
+    print(paste0('Getting batch ',i,'...'))
+    curr.mat <- as.matrix(peak.mat[(1+(i-1)*chunk.size):(chunk.size*i),])
+    classify.mat.list[[i]] <- peakToCluster(peak.mat = curr.mat, ideal.mat = ideal.mat)
+    rm(curr.mat)
+    gc()
+  }
+  if((k*chunk.size) < N){
+    curr.mat <- as.matrix(peak.mat[(1+k*chunk.size):N,])
+    classify.mat.list[[i+1]] <- peakToCluster(peak.mat = curr.mat, ideal.mat = ideal.mat)
+    rm(curr.mat)
+    gc()
+  }
+  classify.mat <- Reduce(rbind, classify.mat.list)
+  return(classify.mat)
+}
 

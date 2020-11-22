@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Alan Selewa" />
+
+
+<title>Heart Atlas - Combined</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/flatly.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 60px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h2 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h3 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h4 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h5 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.section h6 {
+  padding-top: 65px;
+  margin-top: -65px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">HeartAtlas</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Heart Atlas - Combined</h1>
+<h4 class="author">Alan Selewa</h4>
+
+</div>
+
+
+<div id="introduction" class="section level3">
+<h3>Introduction</h3>
+<p>10X snRNA-seq and snATAC-seq was ran on 6 regions of the heart from 3 individuals. Here we explore the clustering results from combining all donors and heart chambers for both modalities. Generally the data were good quality. We removed cells with small libraries (&lt; 1000 UMI in RNA, &lt; 3000 unique fragments in ATAC). We also removed doublets in ATAC-seq using ArchR's doublet removal scheme. For RNA-seq, we removed doublets using the DoubletFinder tool.</p>
+</div>
+<div id="clustering" class="section level3">
+<h3>Clustering</h3>
+<p>The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in <code>R/</code>.</p>
+<pre class="r"><code>suppressMessages(library(Seurat))
+suppressMessages(library(ArchR))
+suppressMessages(source(&#39;../R/analysis_utils.R&#39;))
+
+srna &lt;- readRDS(&#39;../seurat/Heart_RNA_Processed_Combined.rds&#39;)
+satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, showLogo = F))</code></pre>
+<p>We can visualize the six different regions:</p>
+<pre class="r"><code>palette &lt;- setNames(brewer.pal(6, &quot;Set2&quot;), unique(srna$region))
+p1 &lt;- DimPlot(srna, label = F, group.by=&#39;region&#39;, cols = palette) + ggClean() + ggtitle(&#39;scRNA-seq&#39;)
+p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;regions&#39;, palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle(&#39;scATAC-seq&#39;)
+p1 + p2</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-20-1.png" width="960" /></p>
+<p>We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types:</p>
+<table>
+<caption>Heart cell markers</caption>
+<thead>
+<tr class="header">
+<th align="left">marker</th>
+<th align="left">CellType</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">TTN/MYBPC3</td>
+<td align="left">Cardiomyocytes</td>
+</tr>
+<tr class="even">
+<td align="left">MYH7</td>
+<td align="left">Vent. CM</td>
+</tr>
+<tr class="odd">
+<td align="left">NPPA</td>
+<td align="left">Atrial CM</td>
+</tr>
+<tr class="even">
+<td align="left">RGS5/ABCC9</td>
+<td align="left">Pericyte</td>
+</tr>
+<tr class="odd">
+<td align="left">MYH11/TAGLN</td>
+<td align="left">Smooth Muscle</td>
+</tr>
+<tr class="even">
+<td align="left">DCN/PDGFRA</td>
+<td align="left">Fibroblast</td>
+</tr>
+<tr class="odd">
+<td align="left">PECAM1/VWF</td>
+<td align="left">Endothelial</td>
+</tr>
+<tr class="even">
+<td align="left">PLP1</td>
+<td align="left">Neuronal</td>
+</tr>
+<tr class="odd">
+<td align="left">CDA8/LCK</td>
+<td align="left">Lymphoid</td>
+</tr>
+<tr class="even">
+<td align="left">CD14/FOLR2</td>
+<td align="left">Myeloid</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>palette &lt;- readRDS(&#39;palette.rds&#39;)
+p1 &lt;- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle(&#39;scRNA-seq&#39;)
+p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;CellTypes&#39;, palette = palette, legend = F, label = T) + ggtitle(&#39;scATAC-seq&#39;)
+p1 + p2</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-22-1.png" width="1344" /></p>
+<p>We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in proportion?</p>
+<p>As expected, cardiomyocytes are the dominant cell type in both assays.</p>
+<pre class="r"><code>freq &lt;- table(Idents(srna))/length(Idents(srna))
+p1 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scRNA-seq&#39;)
+
+freq &lt;- table(satac$CellTypes)/length(satac$CellTypes)
+p2 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scATAC-seq&#39;)
+
+p1 + p2</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+</div>
+<div id="cre-discovery" class="section level3">
+<h3>CRE discovery</h3>
+<p>Here we run macs2 on ATAC-seq aggregates of each cell-type to discover cell-type specific peaks. Below shows the number of peaks called in total and for each cell type. As expected, most peaks are not protein coding.</p>
+<pre class="r"><code>peak.info &lt;- getPeakSet(satac)
+peak.info.per &lt;- peak.info@metadata$PeakCallSummary
+
+pal &lt;- c(&quot;Distal&quot; = &quot;#60BA64&quot;, &quot;Exonic&quot; = &quot;#73C6FF&quot;, &quot;Intronic&quot; = &quot;#620FA3&quot;, &quot;Promoter&quot; = &quot;#FFC554&quot;)
+ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat=&#39;identity&#39;) + labs(fill=&#39;&#39;) +
+  scale_fill_manual(values = pal) + ggClean(rotate_axis = T) + ylab(&quot;Number of Peaks \n (10^3)&quot;)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-24-1.png" width="672" /></p>
+<p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. Below we plot the relative accessiblility across cells for differentially accessible peaks. We only plot peaks with FDR &lt; 10% and log2 fold-change &gt; 0.5. Based on this filtering, we have discovered 245,901 regulatory elements at 10% FDR. Specially, 88,610 peaks were upregulated in ventricular cardiomyocytes.</p>
+<div id="differential-accessibility-analysis" class="section level4">
+<h4>Differential accessibility analysis</h4>
+<pre class="r"><code>markersPeaks &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds&#39;)
+suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = &quot;FDR &lt;= 0.01 &amp; Log2FC &gt;= 1&quot;, transpose = TRUE))</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+<pre class="r"><code>peak.mat &lt;- suppressMessages(getMatrixFromProject(satac, useMatrix = &quot;PeakMatrix&quot;))
+peak.mat &lt;- peak.mat@assays@data$PeakMatrix
+all.peaks.gr &lt;- getPeakSet(satac)
+all.peaks &lt;- GRToString(all.peaks.gr)
+row.names(peak.mat) &lt;- all.peaks</code></pre>
+</div>
+</div>
+<div id="exploration-gtex-enrichment" class="section level3">
+<h3>Exploration: GTEx enrichment</h3>
+<p>GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below.</p>
+<pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/torus_celltypes_combined.enrichment&#39;, header=F, sep=&quot;&quot;)
+
+ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
+  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
+</div>
+<div id="exploration-signal-explained-in-finemapped-heart-eqtls" class="section level3">
+<h3>Exploration: signal explained in finemapped heart eQTLs</h3>
+<p>As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched.</p>
+<pre class="r"><code>finemap.pips &lt;- read.delim(&#39;../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt&#39;, sep=&#39;\t&#39;,header=T)
+chr &lt;- sub(pattern=&#39;_.*&#39;, replacement = &quot;&quot;, x = finemap.pips$SNP)
+start &lt;- sub(pattern=&#39;chr[0-9]+_&#39;, replacement = &quot;&quot;, x = finemap.pips$SNP)
+start &lt;- as.numeric(sub(pattern=&#39;_.*&#39;, replacement = &quot;&quot;, x = start))
+finemap.pip.gr &lt;- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = start, end = start), pip = finemap.pips$PIP)</code></pre>
+<pre class="r"><code>gr.list &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds&#39;)</code></pre>
+<pre class="r"><code>percent.snps &lt;- rep(0, length(gr.list))
+percent.pip &lt;- rep(0, length(gr.list))
+enrich &lt;- rep(0, length(gr.list))
+for(i in 1:length(gr.list)){
+  curr.peaks.gr &lt;- gr.list[[i]]
+  x &lt;- IRanges::subsetByOverlaps(finemap.pip.gr, curr.peaks.gr)
+  percent.snps[i] &lt;- length(x)/length(finemap.pip.gr)
+  percent.pip[i] &lt;- sum(x$pip)/sum(finemap.pip.gr$pip)
+  enrich[i] &lt;- percent.pip[i]/percent.snps[i]
+}</code></pre>
+<pre class="r"><code>type.names &lt;- gsub(pattern = &#39;_and_&#39;, replacement = &#39;\n&#39;, x = names(gr.list))
+summ.df &lt;- data.frame(percents= c(percent.snps, percent.pip)*100, Type=rep(c(&#39;% SNPs&#39;,&#39;% PIP&#39;), rep(length(type.names), 2)), profile=rep(type.names, 2))
+ggplot(summ.df, aes(y=percents, x=profile, fill=Type)) + geom_bar(stat=&#39;identity&#39;, position=&#39;dodge&#39;) + ggClean(rotate_axis = F) + ylab(&#39;%&#39;) + xlab(&#39;Peak Cluster&#39;) + coord_flip()</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-31-1.png" width="672" /></p>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 ---
-title: "Heart Atlas - Donor 03231"
+title: "Heart Atlas - Combined"
 author: "Alan Selewa"
 data: "10/30/2020"
 output: html_document
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Introduction
 
-10X snRNA-seq and snATAC-seq was ran on 6 regions of the heart from 3 individuals. Here we explore the data from one donor (03231). Generally the data were good quality. We removed cells with small libraries (< 1000 UMI in RNA, < 3000 unique fragments in ATAC). We also removed doublets in ATAC-seq using ArchR's doublet removal scheme. For RNA-seq, we simply removed outlier libraries according to UMI count to account for doublets. We were left with 27,983 and 11,777 nuclei in RNA-seq and ATAC-seq. 
+10X snRNA-seq and snATAC-seq was ran on 6 regions of the heart from 3 individuals. Here we explore the clustering results from combining all donors and heart chambers for both modalities. Generally the data were good quality. We removed cells with small libraries (< 1000 UMI in RNA, < 3000 unique fragments in ATAC). We also removed doublets in ATAC-seq using ArchR's doublet removal scheme. For RNA-seq, we removed doublets using the DoubletFinder tool.
 
 ### Clustering
 
@@ -20,12 +20,10 @@ The dimensionality reduction and clustering was done outside of this notebook an
 ```{r}
 suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
-suppressMessages(library(ComplexHeatmap))
 suppressMessages(source('../R/analysis_utils.R'))
 
-srna <- readRDS('../seurat/Heart_RNA_list_processed.rds')
-srna <- srna$`03231`
-satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_project_03231/', showLogo = F))
+srna <- readRDS('../seurat/Heart_RNA_Processed_Combined.rds')
+satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart/', showLogo = F))
 ```
 
 We can visualize the six different regions:
@@ -87,8 +85,16 @@ Based on the union set, we create a single-cell binary peak accessibility matrix
 #### Differential accessibility analysis
 
 ```{r}
-markersPeaks <- readRDS('../ArchR/ArchR_project_03231/PeakCalls/DA_markerPeaks.rds')
-suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = "FDR <= 0.1 & Log2FC >= 0.5", transpose = TRUE))
+markersPeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds')
+suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", transpose = TRUE))
+```
+
+```{r}
+peak.mat <- suppressMessages(getMatrixFromProject(satac, useMatrix = "PeakMatrix"))
+peak.mat <- peak.mat@assays@data$PeakMatrix
+all.peaks.gr <- getPeakSet(satac)
+all.peaks <- GRToString(all.peaks.gr)
+row.names(peak.mat) <- all.peaks
 ```
 
 
@@ -97,11 +103,44 @@ suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = "FDR <= 0.1
 GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below. 
 
 ```{r}
-enrich.df <- read.delim('../eQTL_enrich/results/donor_03231_enrichment.txt', header=F, sep="")
+enrich.df <- read.delim('../eQTL_enrich/results/torus_celltypes_combined.enrichment', header=F, sep="")
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
-  xlab('log2 Enrichment') + ylab('Cell Type') + xlim(c(0,2.5)) + geom_vline(xintercept = 0, col='red', linetype = "longdash")
+  xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash")
 ```
 
+### Exploration: signal explained in finemapped heart eQTLs
 
+As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched. 
+
+```{r}
+finemap.pips <- read.delim('../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt', sep='\t',header=T)
+chr <- sub(pattern='_.*', replacement = "", x = finemap.pips$SNP)
+start <- sub(pattern='chr[0-9]+_', replacement = "", x = finemap.pips$SNP)
+start <- as.numeric(sub(pattern='_.*', replacement = "", x = start))
+finemap.pip.gr <- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = start, end = start), pip = finemap.pips$PIP)
+```
+
+```{r}
+gr.list <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+```
+
+```{r}
+percent.snps <- rep(0, length(gr.list))
+percent.pip <- rep(0, length(gr.list))
+enrich <- rep(0, length(gr.list))
+for(i in 1:length(gr.list)){
+  curr.peaks.gr <- gr.list[[i]]
+  x <- IRanges::subsetByOverlaps(finemap.pip.gr, curr.peaks.gr)
+  percent.snps[i] <- length(x)/length(finemap.pip.gr)
+  percent.pip[i] <- sum(x$pip)/sum(finemap.pip.gr$pip)
+  enrich[i] <- percent.pip[i]/percent.snps[i]
+}
+```
+
+```{r}
+type.names <- gsub(pattern = '_and_', replacement = '\n', x = names(gr.list))
+summ.df <- data.frame(percents= c(percent.snps, percent.pip)*100, Type=rep(c('% SNPs','% PIP'), rep(length(type.names), 2)), profile=rep(type.names, 2))
+ggplot(summ.df, aes(y=percents, x=profile, fill=Type)) + geom_bar(stat='identity', position='dodge') + ggClean(rotate_axis = F) + ylab('%') + xlab('Peak Cluster') + coord_flip()
+```
 

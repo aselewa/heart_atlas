@@ -18,6 +18,8 @@ Here you will find links to analyses of the heart atlas project.
 * [Donor 02207](heart_02207_analysis.html)
 * [Donor 02336](heart_02336_analysis.html)
 
+* [Combined analysis](heart_combined_analysis.html)
+
 #### Metrics/methods
 
 * [Notes on cell-type specificity of eQTLs](cell_type_specificity.html)

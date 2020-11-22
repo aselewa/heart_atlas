@@ -7,21 +7,17 @@ if(length(args) > 0){
   ATAC_DIR <- args[1]
 } else{
   ATAC_DIR <- '/project2/gca/Heart_Atlas/ATAC_seq/'
-  setwd('/project2/gca/aselewa/heart_atlas_project/')
+  setwd('/project2/gca/aselewa/heart_atlas_project/ArchR/')
 }
 
 # GLOBAL PARAMETERS
-ATAC_SAMPLES <- c("MW200804AA","MW200804AB","MW200804AC","MW200804AD",
-                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","SP-HE200915ATAC-360ATAC","SP-HE200915ATAC-397ATAC",
-                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-MW200928E2ATAC-366ATAC","SP-MW200928E2ATAC-367ATAC","SP-MW200928E2ATAC-407ATAC",
-                 "SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC","SP-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC")
+ATAC_SAMPLES <- c("MW200804AA","MW200804AB","MW200804AC","MW200804AD","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC",
+                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","SP-HE-HE200915ATAC-360ATAC","SP-HE-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC",
+                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-HE-MW200928E2ATAC-366ATAC","SP-HE-MW200928E2ATAC-367ATAC","SP-HE-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC")
 
-ATAC_INDIVIDUALS <- c(rep("02207",4),rep("02336",4),rep("03231",4),rep("02336",2),rep("03231",2),rep("02207",2))
+ATAC_INDIVIDUALS <- c(rep("02207",6),rep("02336",6),rep("03231",6))
 
-ATAC_REGIONS <- c("Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 "Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 "Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 rep(c("Left Atrium","Apex"), 3))
+ATAC_REGIONS <- rep(c("Septum","Right Atrium","Right Ventricle","Left Ventricle","Left Atrium","Apex"), 3)
 
 getFragmentSizes <- function(achr_project){
   project_arrows <- getArrowFiles(achr_project)
@@ -66,7 +62,12 @@ make_ATAC_arrows <- function(){
     addTileMat = TRUE,
     addGeneScoreMat = TRUE
   )
+  
+  arrows <- list.files(path = '.', pattern = '*.arrow', full.names = F)
+  x <- addDoubletScores(input = arrows)
+  
   setwd('../')
+  
 }
 
 main <- function() {
@@ -77,10 +78,10 @@ main <- function() {
   individuals <- unique(ATAC_INDIVIDUALS)
   for(i in 1:length(individuals)){
     curr_samples <- ATAC_SAMPLES[ATAC_INDIVIDUALS == individuals[i]]
-    projDir <- paste0("ArchR_project_",individuals[i],'_2')
+    projDir <- paste0("ArchR/ArchR_project_",individuals[i],'_3')
     
     projHeart <- ArchRProject(
-       ArrowFiles = paste0("ArchR_ArrowFiles/",curr_samples, ".arrow"),
+       ArrowFiles = paste0("ArchR/ArchR_ArrowFiles/",curr_samples, ".arrow"),
        outputDirectory = projDir,
        copyArrows = TRUE 
     )

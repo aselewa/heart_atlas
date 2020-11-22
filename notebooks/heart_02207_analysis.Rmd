@@ -15,16 +15,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Clustering
 
-The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in `scripts/`.
+The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in `R/`.
 
 ```{r}
 suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
-suppressMessages(source('../scripts/analysis_utils.R'))
+suppressMessages(source('../R/analysis_utils.R'))
 
 srna <- readRDS('../seurat/Heart_RNA_list_processed.rds')
 srna <- srna$`02207`
-satac <- suppressMessages(loadArchRProject('../ArchR_project_02207/', showLogo = F))
+satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_project_02207/', showLogo = F))
 ```
 
 We can visualize the six different regions:

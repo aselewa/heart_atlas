@@ -1,9 +1,10 @@
 
 library(ggplot2)
 library(dplyr)
+source('R/analysis_utils.R')
 
 rna.meta <- readRDS('seurat/RNA_seq_metadata.rds')
-atac.meta <- readRDS('ArchR_project_heart/ATAC_metadata_df.rds')
+atac.meta <- readRDS('ATAC_metadata_df.rds')
 
 atac.meta$sample <- rna.meta$sample
 comb.meta <- rbind(rna.meta, atac.meta)
@@ -15,13 +16,13 @@ collapsed.comb.meta <- comb.meta %>%
 
 p1 <- ggplot(collapsed.comb.meta, aes(x=individual,y=mean_saturation, fill=Assay)) + 
   geom_bar(position="dodge", stat="identity") + 
-  ggClean() + xlab("Donor") + ylab("% Saturation") + 
+  ggClean(rotate_axis=TRUE) + xlab("Donor") + ylab("% Saturation") + 
   geom_errorbar(aes(ymin=mean_saturation-sd_saturation/2, ymax=mean_saturation+sd_saturation/2), width=.2,
                 position=position_dodge(.9))
 
 p2 <- ggplot(collapsed.comb.meta, aes(x=individual,y=num_cells, fill=Assay)) + 
   geom_bar(position="dodge", stat="identity") + 
-  ggClean() + xlab("Donor") + ylab("Cells Detected") 
+  ggClean(rotate_axis=TRUE) + xlab("Donor") + ylab("Cells Detected") 
 
 ggsave(filename = "individual_saturation_qc.png", p1, dpi=300, width=8, height=6)
 ggsave(filename = "individual_cells_detected.png", p2, dpi=300, width=8, height=6)
@@ -31,11 +32,11 @@ for(ind in individuals){
   curr_df <- comb.meta[comb.meta$individual==ind,]
   p1 <- ggplot(curr_df, aes(x=regions,y=saturation, fill=Assay)) + 
     geom_bar(position="dodge", stat="identity") + 
-    ggClean() + xlab("Region") + ylab("% Saturation") + ggtitle(ind) + ylim(c(0, 100))
+    ggClean(rotate_axis=TRUE) + xlab("Region") + ylab("% Saturation") + ggtitle(ind) + ylim(c(0, 100))
   
   p2 <- ggplot(curr_df, aes(x=regions,y=ncells, fill=Assay)) + 
     geom_bar(position="dodge", stat="identity") + 
-    ggClean() + xlab("Region") + ylab("Cells Detected") + ggtitle(ind) + ylim(c(0,8000))
+    ggClean(rotate_axis=TRUE) + xlab("Region") + ylab("Cells Detected") + ggtitle(ind) + ylim(c(0,8000))
   
   ggsave(filename = paste0("regions_",ind,"_saturation_qc.png"), p1, dpi=300, width=8, height=6)
   ggsave(filename = paste0("regions_",ind,"_ncells_qc.png"), p2, dpi=300, width=8, height=6)

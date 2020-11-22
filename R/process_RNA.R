@@ -10,17 +10,14 @@ if(length(args) > 0){
 }
 
 # GLOBAL PARAMETERS
-RNA_SAMPLES <- c(paste0('MW200804R',c('A','B','C','D')),
-                 paste0("SP-HE-HE200915RNA-",c('175RNA','359RNA','360RNA','397RNA')),
-                 paste0("SP-HE-MW200928E2RNA-",c('175RNA','366RNA','367RNA','407RNA')),
-                 paste0("SP-HE-MW200928E1RNA-",c('396RNA','398RNA','406RNA','408RNA','411RNA','413RNA')))
+# GLOBAL PARAMETERS
+RNA_SAMPLES <- c("MW200804RA","MW200804RB","MW200804RC","MW200804RD","SP-HE-MW200928E1RNA-411RNA","SP-HE-MW200928E1RNA-413RNA",
+                  "SP-HE-HE200915RNA-175RNA","SP-HE-HE200915RNA-359RNA","SP-HE-HE200915RNA-360RNA","SP-HE-HE200915RNA-397RNA","SP-HE-MW200928E1RNA-396RNA","SP-HE-MW200928E1RNA-398RNA",
+                  "SP-HE-MW200928E2RNA-175RNA", "SP-HE-MW200928E2RNA-366RNA","SP-HE-MW200928E2RNA-367RNA","SP-HE-MW200928E2RNA-407RNA","SP-HE-MW200928E1RNA-406RNA","SP-HE-MW200928E1RNA-408RNA")
 
-RNA_INDIVIDUALS <- c(rep("02207",4),rep("02336",4),rep("03231",4),rep("02336",2),rep("03231",2),rep("02207",2))
+RNA_INDIVIDUALS <- c(rep("02207",6),rep("02336",6),rep("03231",6))
 
-RNA_REGIONS <- c("Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 "Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 "Septum","Right Atrium","Right Ventricle","Left Ventricle",
-                 rep(c("Left Atrium","Apex"), 3))
+RNA_REGIONS <- rep(c("Septum","Right Atrium","Right Ventricle","Left Ventricle","Left Atrium","Apex"), 3)
 
 process_RNA <- function(){
   

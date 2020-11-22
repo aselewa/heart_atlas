@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Introduction
 
 10X snRNA-seq and snATAC-seq was ran on 6 regions of the heart from 3 individuals. Here we explore the data from one donor (02336). Generally the data were good quality. We removed cells with small libraries (< 1000 UMI in RNA, < 3000 unique fragments in ATAC). We also removed doublets in ATAC-seq using ArchR's doublet removal scheme. For RNA-seq, we simply removed outlier libraries according to UMI count to account for doublets. We retain 28,663 nuclei in RNA-seq and 10,480 nuclei in ATAC-seq.
+
 ### Clustering
 
 The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in `scripts/`.
@@ -19,7 +20,7 @@ The dimensionality reduction and clustering was done outside of this notebook an
 ```{r}
 suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
-suppressMessages(source('../scripts/analysis_utils.R'))
+suppressMessages(source('../R/analysis_utils.R'))
 
 srna <- readRDS('../seurat/Heart_RNA_list_processed.rds')
 srna <- srna$`02336`

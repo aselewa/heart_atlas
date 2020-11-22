@@ -1,6 +1,6 @@
 library(Seurat)
-library(future)
 library(harmony)
+library(DoubletFinder)
 library(ggplot2)
 library(RColorBrewer)
 
@@ -16,85 +16,76 @@ ggClean <- function(){
 
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 
+# Load raw seurat object. Filter nUMI, and remove doublets per individual (little to no batch effects within individuals)
 heart_rna <- readRDS('seurat/Heart_Seurat_RNA_all_samples_raw.RDS')
-heart_rna <- base::subset(heart_rna, nCount_RNA > 500 & nCount_RNA < 10000 & percent.mito < 10)
-
-p <- VlnPlot(heart_rna, features = c("nCount_RNA","nFeature_RNA","percent.mito"), group.by = "individual", pt.size = 0.05)
-ggsave(filename = 'seurat/plots/rna_qc_vln.png', plot = p, width = 10, height = 8)
-
-heart_rna_list <- SplitObject(heart_rna, split.by =  "individual")
-min.feats <- c(500, 500, 500)
-max.feats <- c(2500, 1500, 2500)
-for(i in 1:length(heart_rna_list)) {
-  
-  heart_rna_list[[i]] <- base::subset(heart_rna_list[[i]], subset = nFeature_RNA > min.feats[i] & nFeature_RNA < max.feats[i])
-  
+heart_rna <- base::subset(heart_rna, nCount_RNA > 1000 & nCount_RNA < 10000 & percent.mito < 10)
+heart_rna_list <- SplitObject(heart_rna, split.by = 'individual')
+for(i in 1:length(heart_rna_list)){
   heart_rna_list[[i]] <- NormalizeData(heart_rna_list[[i]], verbose = T)
   heart_rna_list[[i]] <- FindVariableFeatures(heart_rna_list[[i]], selection.method = "vst", 
-                                             nfeatures = 2000, verbose = T)
+                                    nfeatures = 2000, verbose = T)
   heart_rna_list[[i]] <- ScaleData(heart_rna_list[[i]])
-  heart_rna_list[[i]] <- RunPCA(heart_rna_list[[i]], verbose = T)
+  heart_rna_list[[i]] <- RunPCA(heart_rna_list[[i]], verbose = T, npcs = 100)
+  
+  heart_rna_list[[i]] <- doubletFinder_v3(seu = heart_rna_list[[i]], 
+                                          PCs = 1:10, 
+                                          pN = 0.015, 
+                                          pK = 0.005, 
+                                          nExp = round(0.075*nrow(heart_rna@meta.data)))
+  n <- colnames(heart_rna_list[[i]]@meta.data)
+  doubletCol <- n[startsWith("DF.classifications", x = n)]
+  heart_rna_list[[i]]$doubletStatus <- heart_rna_list[[i]][[doubletCol]]
+  heart_rna_list[[i]] <- base::subset(heart_rna_list[[i]], doubletStatus == "Singlet")
 }
+
+heart_rna_filtered <- merge(heart_rna_list$`03231`, c(heart_rna_list$`02207`, heart_rna_list$`02336`))
+
+p <- VlnPlot(heart_rna_filtered, features = c("nCount_RNA","nFeature_RNA"), group.by = "individual", pt.size = 0.05)
+ggsave(filename = 'seurat/plots/rna_qc_vln.png', plot = p, width = 10, height = 8)
+
+saveRDS(heart_rna_filtered, file = 'seurat/Heart_Seurat_RNA_all_samples_Filtered.rds')
+
+heart_rna_filtered <- NormalizeData(heart_rna_filtered, verbose = T)
+heart_rna_filtered <- FindVariableFeatures(heart_rna_filtered, selection.method = "vst", 
+                                             nfeatures = 2000, verbose = T)
+heart_rna_filtered <- ScaleData(heart_rna_filtered)
+heart_rna_filtered <- RunPCA(heart_rna_filtered, verbose = T)
+
+heart_rna_filtered <- RunHarmony(heart_rna_filtered, group.by.vars = 'individual')
+
+heart_rna_filtered <- RunUMAP(object = heart_rna_filtered, dims = 1:30, min.dist = 0.4, reduction = 'harmony')
+heart_rna_filtered <- FindNeighbors(heart_rna_filtered, dims = 1:30, reduction ='harmony')
+heart_rna_filtered <- FindClusters(object = heart_rna_filtered, resolution=0.2)
+
+DimPlot(heart_rna_filtered, group.by = 'individual', pt.size = 0.01) 
+DimPlot(heart_rna_filtered, label=T) 
 
 markers <- c("TNNT2","MYBPC3","MYH7","NPPA","RGS5","ABCC9","MYH11","TAGLN","DCN","PDGFRA","PECAM1","VWF","PLP1","CD8A","LCK","CD14","FOLR2")
-res <- c(0.2, 0.2, 0.25)
-for(i in 1:length(1:length(heart_rna_list))){
-  heart_rna_list[[i]] <- FindNeighbors(heart_rna_list[[i]], reduction = "pca")
-  heart_rna_list[[i]] <- RunUMAP(heart_rna_list[[i]], reduction = "pca", dims = 1:10, min.dist = 0.3)
-  heart_rna_list[[i]] <- FindClusters(heart_rna_list[[i]], resolution = res[i])
-  
-  p <- FeaturePlot(heart_rna_list[[i]], features = markers)
-  ggsave(filename = paste0('seurat/plots/umap_',names(heart_rna_list[i]),'_celltypes.png'), plot = p, width = 20, height=12, dpi = 300)
-}
+p <- FeaturePlot(heart_rna_filtered, features = markers)
+ggsave(filename = paste0('seurat/plots/umap_combined_genes.png'), plot = p, width = 20, height=12, dpi = 300)
 
-
-heart_rna_list$`02207` <- RenameIdents(heart_rna_list$`02207`, 
+heart_rna_filtered <- RenameIdents(heart_rna_filtered, 
                                        '0'='Endothelial', 
-                                       '1'='Pericyte',
-                                       '2'='Fibroblast',
-                                       '3'='Myeloid',
-                                       '4'='Vent. CM',
-                                       '5'='Lymphoid',
-                                       '6'='Smooth Muscle',
-                                       '7'='Neuronal',
-                                       '8'='Endothelial',
-                                       '9'='Lymphoid')
-
-heart_rna_list$`02336` <- RenameIdents(heart_rna_list$`02336`,
-                                       '0'='Endothelial',
-                                       '1'='Pericyte',
-                                       '2'='Fibroblast',
-                                       '3'='Myeloid',
-                                       '4'='Vent. CM',
-                                       '5'='Endothelial',
-                                       '6'='Smooth Muscle',
-                                       '7'='Lymphoid',
-                                       '8'='Neuronal',
-                                       '9'='Other')
-
-heart_rna_list$`03231` <- RenameIdents(heart_rna_list$`03231`, 
-                                       '0'='Fibroblast', 
-                                       '1'='Endothelial',
+                                       '1'='Fibroblast',
                                        '2'='Vent. CM',
                                        '3'='Pericyte',
-                                       '4'='Endothelial',
-                                       '5'='Myeloid',
-                                       '6'='Vent. CM',
-                                       '7'='Lymphoid',
+                                       '4'='Myeloid',
+                                       '5'='Smooth Muscle',
+                                       '6'='Lymphoid',
+                                       '7'='Endothelial',
                                        '8'='Neuronal',
-                                       '9'='Smooth Muscle',
-                                       '10'='Atrial CM',
-                                       '11'='Fibroblast')
+                                       '9'='Endothelial',
+                                       '10'='Neuronal',
+                                       '11'='Atrial CM',
+                                       '12'='Fibroblast')
 
-palette <- setNames(brewer.pal(10, name="Set3"), c(levels(Idents(heart_rna_list$`03231`)),"Other"))
+palette <- setNames(brewer.pal(9, name="Set3"), sort(levels(Idents(heart_rna_filtered))))
 
-for(i in 1:length(heart_rna_list)){
-  p <- DimPlot(heart_rna_list[[i]], pt.size = 0.05, label = T, cols=palette) + ggtitle(paste0("scRNA-seq - ",names(heart_rna_list)[i])) + theme_set(theme_gray()) + ggClean() 
-  ggsave(filename = paste0('seurat/plots/umap_',names(heart_rna_list)[i],'_celltypes.png'), plot = p, width = 8, height=6, dpi = 300)
-}
+p <- DimPlot(heart_rna_filtered, pt.size = 0.05, label = T, cols=palette) + ggtitle("scRNA-seq - 67114 Nuclei") + theme_set(theme_gray()) + ggClean() 
+ggsave(filename = paste0('seurat/plots/umap_combined_celltypes.png'), plot = p, width = 8, height=6, dpi = 300)
 
-saveRDS(heart_rna_list, file = "seurat/Heart_RNA_list_processed.rds")
-
+saveRDS(heart_rna_filtered, file = "seurat/Heart_RNA_Processed_Combined.rds")
+saveRDS(palette, 'notebooks/palette.rds')
 
 
 
