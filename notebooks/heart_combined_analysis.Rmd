@@ -29,7 +29,7 @@ satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart/', showLogo = F
 
 We can visualize the six different regions:
 
-```{r, fig.width=10, fig.height=5}
+```{r umap1, fig.width=10, fig.height=5}
 palette <- setNames(brewer.pal(6, "Set2"), unique(srna$region))
 p1 <- DimPlot(srna, label = F, group.by='region', cols = palette) + ggClean() + ggtitle('scRNA-seq')
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'regions', palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle('scATAC-seq')
@@ -46,7 +46,7 @@ knitr::kable(markers.df, caption = 'Heart cell markers')
 ```
 
 
-```{r, warning=FALSE, fig.width=14, fig.height=8}
+```{r umap2, warning=FALSE, fig.width=14, fig.height=8}
 palette <- readRDS('palette.rds')
 p1 <- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle('scRNA-seq')
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'CellTypes', palette = palette, legend = F, label = T) + ggtitle('scATAC-seq')
@@ -58,7 +58,7 @@ We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in
 
 As expected, cardiomyocytes are the dominant cell type in both assays.
 
-```{r}
+```{r freq}
 freq <- table(Idents(srna))/length(Idents(srna))
 p1 <- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle('scRNA-seq')
 
@@ -72,7 +72,7 @@ p1 + p2
 
 Here we run macs2 on ATAC-seq aggregates of each cell-type to discover cell-type specific peaks. Below shows the number of peaks called in total and for each cell type. As expected, most peaks are not protein coding.
 
-```{r}
+```{r cre}
 peak.info <- getPeakSet(satac)
 peak.info.per <- peak.info@metadata$PeakCallSummary
 
@@ -113,7 +113,7 @@ edgeRpeaks@assays@data$FDR <- fdr.df
 
 Both methods generally detect the same peaks differentially accessible peaks. Below is a plot of the log fold change from edgeR and from ArchR. 
 
-```{r}
+```{r logfc}
 arch.log2fc <- assays(archrPeaks)[['Log2FC']]$`Vent. CM`
 arch.fdr <- assays(archrPeaks)[['FDR']]$`Vent. CM`
 edge.log2fc <- assays(edgeRpeaks)[['Log2FC']]$`Vent. CM`
@@ -163,7 +163,7 @@ a <- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = 
 b <- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (ArchR)', silent = T)[[4]]
 ```
 
-```{r}
+```{r heat}
 gridExtra::grid.arrange(a,b, ncol=2)
 ```
 
@@ -199,7 +199,7 @@ motifScatterPlot <- function(motifUp1, motifUp2){
 }
 ```
 
-```{r}
+```{r motif}
 motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle('Motif Enrichment (Vent CM)')
 ```
 
