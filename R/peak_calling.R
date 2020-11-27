@@ -12,17 +12,22 @@ run_workflow <- function(archr_project_path){
   
   projHeart <- loadArchRProject(archr_project_path)
   
-  #projHeart <- addGroupCoverages(ArchRProj = projHeart, groupBy = "CellTypes")
-  #projHeart <- addReproduciblePeakSet(ArchRProj = projHeart, groupBy = "CellTypes", pathToMacs2 = macs2, cutOff = 0.01)
-  #projHeart <- addPeakMatrix(projHeart, force = T)
+  projHeart <- addGroupCoverages(ArchRProj = projHeart, groupBy = "CellTypes")
+  projHeart <- addReproduciblePeakSet(ArchRProj = projHeart, groupBy = "CellTypes", pathToMacs2 = macs2, cutOff = 0.01, verbose = T)
+  awprojHeart <- addPeakMatrix(projHeart, force = T)
   
-  #markersPeaks <- getMarkerFeatures(ArchRProj = projHeart, useMatrix = "PeakMatrix", groupBy = "CellTypes", bias = c("TSSEnrichment", "log10(nFrags)"), testMethod = "wilcoxon")
-  #saveRDS(markersPeaks, paste0(archr_project_path,'/PeakCalls/DA_markerPeaks.rds'))
+  markersPeaks <- getMarkerFeatures(ArchRProj = projHeart, 
+                                    useMatrix = "PeakMatrix", 
+                                    groupBy = "CellTypes", 
+                                    bias = c("TSSEnrichment", "log10(nFrags)"), 
+                                    test)
   
-  #markers <- getMarkers(markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
-  #saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds'))
+  saveRDS(markersPeaks, paste0(archr_project_path,'/PeakCalls/DA_markerPeaks.rds'))
   
-  #saveArchRProject(projHeart) 
+  markers <- getMarkers(markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
+  saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds'))
+  
+  saveArchRProject(projHeart) 
   
   # unsupervised clustering of peaks
   peak.mat <- getMatrixFromProject(projHeart, useMatrix = "PeakMatrix", binarize = T)
@@ -66,7 +71,7 @@ create_torus_annotations <- function(snpmap, gr.list){
       n <- gsub(pattern = " ", replacement = "", c)
       n <- gsub(pattern = "/", replacement = "", n)
       annot[,paste0(n,'_d')] <- ifelse(annot$snp %in% snpsIn, 1, 0)
-      vroom::vroom_write(as_tibble(annot), path = paste0('eQTL_enrich/annotations/DA_peaks_',n,'_combined.txt.gz')) 
+      vroom::vroom_write(as_tibble(annot), path = paste0('eQTL_enrich/annotations/DA_peaks_',n,'_edgeR_peaks.txt.gz')) 
     }
   }
 }
@@ -78,13 +83,7 @@ for(p in projects){
 }
 
 snpmap <- readRDS('eQTL_enrich/metadata/hg38_SNP_map.gr.rds')
-create_torus_annotations(snpmap, gr.list)
-
-
-
-
-
-
+create_torus_annotations(snpmap, gr.list = gr.list)
 
 
 #### Supervised clustering of peaks

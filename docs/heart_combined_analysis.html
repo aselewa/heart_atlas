@@ -378,6 +378,7 @@ div.tocify {
 <p>The dimensionality reduction and clustering was done outside of this notebook and the resulting objects were serialized/saved. Details as to how the data were processed are in <code>R/</code>.</p>
 <pre class="r"><code>suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
+suppressMessages(library(viridis))
 suppressMessages(source(&#39;../R/analysis_utils.R&#39;))
 
 srna &lt;- readRDS(&#39;../seurat/Heart_RNA_Processed_Combined.rds&#39;)
@@ -387,7 +388,7 @@ satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, s
 p1 &lt;- DimPlot(srna, label = F, group.by=&#39;region&#39;, cols = palette) + ggClean() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;regions&#39;, palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-20-1.png" width="960" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-2-1.png" width="960" /></p>
 <p>We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types:</p>
 <table>
 <caption>Heart cell markers</caption>
@@ -444,7 +445,7 @@ p1 + p2</code></pre>
 p1 &lt;- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;CellTypes&#39;, palette = palette, legend = F, label = T) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-22-1.png" width="1344" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-4-1.png" width="1344" /></p>
 <p>We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in proportion?</p>
 <p>As expected, cardiomyocytes are the dominant cell type in both assays.</p>
 <pre class="r"><code>freq &lt;- table(Idents(srna))/length(Idents(srna))
@@ -454,7 +455,7 @@ freq &lt;- table(satac$CellTypes)/length(satac$CellTypes)
 p2 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scATAC-seq&#39;)
 
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
 </div>
 <div id="cre-discovery" class="section level3">
 <h3>CRE discovery</h3>
@@ -465,19 +466,98 @@ peak.info.per &lt;- peak.info@metadata$PeakCallSummary
 pal &lt;- c(&quot;Distal&quot; = &quot;#60BA64&quot;, &quot;Exonic&quot; = &quot;#73C6FF&quot;, &quot;Intronic&quot; = &quot;#620FA3&quot;, &quot;Promoter&quot; = &quot;#FFC554&quot;)
 ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat=&#39;identity&#39;) + labs(fill=&#39;&#39;) +
   scale_fill_manual(values = pal) + ggClean(rotate_axis = T) + ylab(&quot;Number of Peaks \n (10^3)&quot;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-24-1.png" width="672" /></p>
-<p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. Below we plot the relative accessiblility across cells for differentially accessible peaks. We only plot peaks with FDR &lt; 10% and log2 fold-change &gt; 0.5. Based on this filtering, we have discovered 245,901 regulatory elements at 10% FDR. Specially, 88,610 peaks were upregulated in ventricular cardiomyocytes.</p>
-<div id="differential-accessibility-analysis" class="section level4">
-<h4>Differential accessibility analysis</h4>
-<pre class="r"><code>markersPeaks &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds&#39;)
-suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = &quot;FDR &lt;= 0.01 &amp; Log2FC &gt;= 1&quot;, transpose = TRUE))</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
-<pre class="r"><code>peak.mat &lt;- suppressMessages(getMatrixFromProject(satac, useMatrix = &quot;PeakMatrix&quot;))
-peak.mat &lt;- peak.mat@assays@data$PeakMatrix
-all.peaks.gr &lt;- getPeakSet(satac)
-all.peaks &lt;- GRToString(all.peaks.gr)
-row.names(peak.mat) &lt;- all.peaks</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible.</p>
 </div>
+<div id="differential-accessibility-analysis" class="section level3">
+<h3>Differential accessibility analysis</h3>
+<p>I used two approaches for differential accessibility:</p>
+<ul>
+<li>one vs all single-cell differential accessibility (wilcoxon rank sum test)</li>
+<li>one vs all pseudo-bulk differential accessibility in edgeR (as was done in Hocker et al.)</li>
+</ul>
+<pre class="r"><code>archrPeaks &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds&#39;)
+edgePeaks &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/edgeR_DA_peaks.gr.rds&#39;)</code></pre>
+<pre class="r"><code>edgePeaks &lt;- sapply(edgePeaks, function(x){sort(sortSeqlevels(x))})
+fdr.df &lt;- as.data.frame(sapply(edgePeaks, function(x){x$FDR}))
+fc.df &lt;- as.data.frame(sapply(edgePeaks, function(x){x$Log2FC}))
+fdr.df &lt;- fdr.df[,archrPeaks@colData@rownames]
+fc.df &lt;- fc.df[,archrPeaks@colData@rownames]
+
+edgeRpeaks &lt;- archrPeaks
+edgeRpeaks@assays@data$Log2FC &lt;- fc.df
+edgeRpeaks@assays@data$FDR &lt;- fdr.df</code></pre>
+<div id="global-comparison" class="section level4">
+<h4>global comparison</h4>
+<p>Both methods generally detect the same peaks differentially accessible peaks. Below is a plot of the log fold change from edgeR and from ArchR.</p>
+<pre class="r"><code>arch.log2fc &lt;- assays(archrPeaks)[[&#39;Log2FC&#39;]]$`Vent. CM`
+arch.fdr &lt;- assays(archrPeaks)[[&#39;FDR&#39;]]$`Vent. CM`
+edge.log2fc &lt;- assays(edgeRpeaks)[[&#39;Log2FC&#39;]]$`Vent. CM`
+edge.fdr &lt;- assays(edgeRpeaks)[[&#39;FDR&#39;]]$`Vent. CM`
+
+logfc.df &lt;- data.frame(ArchR_logfc=arch.log2fc, edgeR_logfc=edge.log2fc)
+get_density &lt;- function(x, y, ...) {
+  dens &lt;- MASS::kde2d(x, y, ...)
+  ix &lt;- findInterval(x, dens$x)
+  iy &lt;- findInterval(y, dens$y)
+  ii &lt;- cbind(ix, iy)
+  return(dens$z[ii])
+}
+logfc.df$density &lt;- get_density(logfc.df$ArchR_logfc, logfc.df$edgeR_logfc)
+ggplot(logfc.df, aes(x=ArchR_logfc, y=edgeR_logfc, color=density)) + geom_point() + xlab(&#39;edgeR log2FC&#39;) + ylab(&#39;ArchR log2FC&#39;) + geom_abline(slope = 1, color=&quot;red&quot;, linetype=&quot;dashed&quot;) + ggClean() + scale_color_viridis() + ggtitle(&#39;Vent. CM &#39;) + ggClean()</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+</div>
+<div id="reproducibility-across-donors" class="section level4">
+<h4>Reproducibility across donors</h4>
+<p>Here I test which method yields better reproducibility across donors. Briefly, I obtained differentially accessible peaks from each donor (n = 3) using the ArchR and edgeR methods. Below I summarize how the Vent CM peaks are shared across donors with the two methods.</p>
+<pre class="r"><code>projs &lt;- list.files(path = &#39;../ArchR&#39;, pattern = &#39;ArchR_project_*&#39;, full.names = T)
+archr.list &lt;- list()
+edger.list &lt;- list()
+for( i in 1:length(projs)){
+  curr.edger.peaks &lt;- readRDS(paste0(projs[i], &#39;/PeakCalls/edgeR_DA_peaks.gr.rds&#39;))$`Vent. CM`
+  curr.edger.peaks &lt;- curr.edger.peaks[curr.edger.peaks$FDR &lt;= 0.01 &amp; curr.edger.peaks$Log2FC &gt;= 1]
+  curr.archr.peaks &lt;- readRDS(paste0(projs[i], &#39;/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds&#39;))$`Vent. CM`
+  
+  curr.edger.peaks$donor &lt;- i
+  curr.archr.peaks$donor &lt;- i
+  edger.list[[i]] &lt;- curr.edger.peaks
+  archr.list[[i]] &lt;- curr.archr.peaks
+}</code></pre>
+<pre class="r"><code>edger.share &lt;- getSharingMat(edger.list)
+archr.share &lt;- getSharingMat(archr.list)</code></pre>
+<p>As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.</p>
+<pre class="r"><code>a &lt;- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (edgeR)&#39;, silent = T)[[4]]
+b &lt;- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (ArchR)&#39;, silent = T)[[4]]</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<pre class="r"><code>gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs= list(a=a,b=b),ncol=2))</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-12-2.png" width="672" /></p>
+<p>Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks.</p>
+</div>
+</div>
+<div id="motif-enrichment" class="section level3">
+<h3>Motif enrichment</h3>
+<p>Next we compare these two peak sets in terms of motif enrichment. Below we plot the enrichment of motifs in Vent. CM peaks from both methods using <em>aggregate donor</em> data for each cell-type.</p>
+<pre class="r"><code>archr_motifUp &lt;- suppressMessages(peakAnnoEnrichment(seMarker = archrPeaks, ArchRProj = satac, peakAnnotation = &quot;Motif&quot;, cutOff = &quot;FDR &lt;= 0.01 &amp; Log2FC &gt;= 0.5&quot;))
+edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, ArchRProj = satac, peakAnnotation = &quot;Motif&quot;, cutOff = &quot;FDR &lt;= 0.01 &amp; Log2FC &gt;= 0.5&quot;))</code></pre>
+<pre class="r"><code>motifScatterPlot &lt;- function(motifUp1, motifUp2){
+ df1 &lt;- data.frame(TF1 = rownames(motifUp1), mlog10Padj1 = assay(motifUp1)[,7])
+ df2 &lt;- data.frame(TF2 = rownames(motifUp2), mlog10Padj2 = assay(motifUp2)[,7])
+ df &lt;- cbind(df1, df2)
+ 
+ ggplot(df, aes(mlog10Padj1, mlog10Padj2)) + 
+   geom_point(size = 1) +
+   ggrepel::geom_label_repel(
+     data = df[df$mlog10Padj1 &gt; 100 | df$mlog10Padj2 &gt; 100, ], aes(x = mlog10Padj1, y = mlog10Padj2, label = TF1), 
+     size = 3,
+     nudge_x = 2,
+     color = &quot;black&quot;
+   ) + ggClean() + 
+   ylab(&quot;-log10(P-adj) (edgeR)&quot;) + 
+   xlab(&quot;-log10(P-adj) (ArchR)&quot;) +
+   LegendOff()
+}</code></pre>
+<pre class="r"><code>motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle(&#39;Motif Enrichment (Vent CM)&#39;)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
 </div>
 <div id="exploration-gtex-enrichment" class="section level3">
 <h3>Exploration: GTEx enrichment</h3>
@@ -485,32 +565,13 @@ row.names(peak.mat) &lt;- all.peaks</code></pre>
 <pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/torus_celltypes_combined.enrichment&#39;, header=F, sep=&quot;&quot;)
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
-  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-27-1.png" width="672" /></p>
-</div>
-<div id="exploration-signal-explained-in-finemapped-heart-eqtls" class="section level3">
-<h3>Exploration: signal explained in finemapped heart eQTLs</h3>
-<p>As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched.</p>
-<pre class="r"><code>finemap.pips &lt;- read.delim(&#39;../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt&#39;, sep=&#39;\t&#39;,header=T)
-chr &lt;- sub(pattern=&#39;_.*&#39;, replacement = &quot;&quot;, x = finemap.pips$SNP)
-start &lt;- sub(pattern=&#39;chr[0-9]+_&#39;, replacement = &quot;&quot;, x = finemap.pips$SNP)
-start &lt;- as.numeric(sub(pattern=&#39;_.*&#39;, replacement = &quot;&quot;, x = start))
-finemap.pip.gr &lt;- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = start, end = start), pip = finemap.pips$PIP)</code></pre>
-<pre class="r"><code>gr.list &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds&#39;)</code></pre>
-<pre class="r"><code>percent.snps &lt;- rep(0, length(gr.list))
-percent.pip &lt;- rep(0, length(gr.list))
-enrich &lt;- rep(0, length(gr.list))
-for(i in 1:length(gr.list)){
-  curr.peaks.gr &lt;- gr.list[[i]]
-  x &lt;- IRanges::subsetByOverlaps(finemap.pip.gr, curr.peaks.gr)
-  percent.snps[i] &lt;- length(x)/length(finemap.pip.gr)
-  percent.pip[i] &lt;- sum(x$pip)/sum(finemap.pip.gr$pip)
-  enrich[i] &lt;- percent.pip[i]/percent.snps[i]
-}</code></pre>
-<pre class="r"><code>type.names &lt;- gsub(pattern = &#39;_and_&#39;, replacement = &#39;\n&#39;, x = names(gr.list))
-summ.df &lt;- data.frame(percents= c(percent.snps, percent.pip)*100, Type=rep(c(&#39;% SNPs&#39;,&#39;% PIP&#39;), rep(length(type.names), 2)), profile=rep(type.names, 2))
-ggplot(summ.df, aes(y=percents, x=profile, fill=Type)) + geom_bar(stat=&#39;identity&#39;, position=&#39;dodge&#39;) + ggClean(rotate_axis = F) + ylab(&#39;%&#39;) + xlab(&#39;Peak Cluster&#39;) + coord_flip()</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-31-1.png" width="672" /></p>
+  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of ArchR DA Peaks&#39;)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/DA_peaks_edgeR.enrichment&#39;, header=F, sep=&quot;&quot;)
+
+ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
+  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of edgeR DA Peaks&#39;)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 </div>
 
 

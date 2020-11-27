@@ -1,6 +1,7 @@
 library(ggplot2)
 library(patchwork)
 library(RColorBrewer)
+library(GenomicRanges)
 library(dplyr)
 
 ggClean <- function(rotate_axis=FALSE){
@@ -89,6 +90,31 @@ StringToGR <- function(st){
   e <- as.numeric(sub(pattern = '.*-', replacement = "", st.end))
   gr <- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = s, end = e))
   return(gr)
+}
+
+qOverlapS <- function(q, s, minPoverlap){
+  
+  hits <- GenomicRanges::findOverlaps(query = q, subject = s)
+  overlaps <- pintersect(q[queryHits(hits)], s[subjectHits(hits)])
+  percentOverlap <- width(overlaps) / width(q[queryHits(hits)])
+  hits <- hits[percentOverlap > minPoverlap]
+  
+  inQuery <- q[queryHits(hits)]
+  propIn <- length(unique(GRToString(inQuery)))/length(q)
+  return(propIn)
+}
+
+
+getSharingMat <- function(gr.list){
+  l <- length(gr.list)
+  m <- matrix(0, nrow=l, ncol=l)
+  for(i in 1:l){
+    curr_sum <- 0
+    for(j in 1:l){
+      m[i,j] <- qOverlapS(q = gr.list[[i]], s = gr.list[[j]], 0.5)
+    }
+  }
+  m
 }
 
 generateBits <- function(n){

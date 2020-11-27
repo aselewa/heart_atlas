@@ -20,6 +20,7 @@ The dimensionality reduction and clustering was done outside of this notebook an
 ```{r}
 suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
+suppressMessages(library(viridis))
 suppressMessages(source('../R/analysis_utils.R'))
 
 srna <- readRDS('../seurat/Heart_RNA_Processed_Combined.rds')
@@ -80,23 +81,121 @@ ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat='identity
   scale_fill_manual(values = pal) + ggClean(rotate_axis = T) + ylab("Number of Peaks \n (10^3)")
 ```
 
-Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. Below we plot the relative accessiblility across cells for differentially accessible peaks. We only plot peaks with FDR < 10% and log2 fold-change > 0.5. Based on this filtering, we have discovered 245,901 regulatory elements at 10% FDR. Specially, 88,610 peaks were upregulated in ventricular cardiomyocytes. 
+Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. 
 
-#### Differential accessibility analysis
+### Differential accessibility analysis
+
+I used two approaches for differential accessibility: 
+
+* one vs all single-cell differential accessibility (wilcoxon rank sum test)
+* one vs all pseudo-bulk differential accessibility in edgeR (as was done in Hocker et al.)
 
 ```{r}
-markersPeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds')
-suppressMessages(plotMarkerHeatmap(seMarker = markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", transpose = TRUE))
+archrPeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds')
+edgePeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/edgeR_DA_peaks.gr.rds')
 ```
 
 ```{r}
-peak.mat <- suppressMessages(getMatrixFromProject(satac, useMatrix = "PeakMatrix"))
-peak.mat <- peak.mat@assays@data$PeakMatrix
-all.peaks.gr <- getPeakSet(satac)
-all.peaks <- GRToString(all.peaks.gr)
-row.names(peak.mat) <- all.peaks
+edgePeaks <- sapply(edgePeaks, function(x){sort(sortSeqlevels(x))})
+fdr.df <- as.data.frame(sapply(edgePeaks, function(x){x$FDR}))
+fc.df <- as.data.frame(sapply(edgePeaks, function(x){x$Log2FC}))
+fdr.df <- fdr.df[,archrPeaks@colData@rownames]
+fc.df <- fc.df[,archrPeaks@colData@rownames]
+
+edgeRpeaks <- archrPeaks
+edgeRpeaks@assays@data$Log2FC <- fc.df
+edgeRpeaks@assays@data$FDR <- fdr.df
 ```
 
+#### global comparison
+
+Both methods generally detect the same peaks differentially accessible peaks. Below is a plot of the log fold change from edgeR and from ArchR. 
+
+```{r}
+arch.log2fc <- assays(archrPeaks)[['Log2FC']]$`Vent. CM`
+arch.fdr <- assays(archrPeaks)[['FDR']]$`Vent. CM`
+edge.log2fc <- assays(edgeRpeaks)[['Log2FC']]$`Vent. CM`
+edge.fdr <- assays(edgeRpeaks)[['FDR']]$`Vent. CM`
+
+logfc.df <- data.frame(ArchR_logfc=arch.log2fc, edgeR_logfc=edge.log2fc)
+get_density <- function(x, y, ...) {
+  dens <- MASS::kde2d(x, y, ...)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
+logfc.df$density <- get_density(logfc.df$ArchR_logfc, logfc.df$edgeR_logfc)
+ggplot(logfc.df, aes(x=ArchR_logfc, y=edgeR_logfc, color=density)) + geom_point() + xlab('edgeR log2FC') + ylab('ArchR log2FC') + geom_abline(slope = 1, color="red", linetype="dashed") + ggClean() + scale_color_viridis() + ggtitle('Vent. CM ') + ggClean()
+```
+
+#### Reproducibility across donors
+
+Here I test which method yields better reproducibility across donors. Briefly, I obtained differentially accessible peaks from each donor (n = 3) using the ArchR and edgeR methods. Below I summarize how the Vent CM peaks are shared across donors with the two methods. 
+
+```{r}
+projs <- list.files(path = '../ArchR', pattern = 'ArchR_project_*', full.names = T)
+archr.list <- list()
+edger.list <- list()
+for( i in 1:length(projs)){
+  curr.edger.peaks <- readRDS(paste0(projs[i], '/PeakCalls/edgeR_DA_peaks.gr.rds'))$`Vent. CM`
+  curr.edger.peaks <- curr.edger.peaks[curr.edger.peaks$FDR <= 0.01 & curr.edger.peaks$Log2FC >= 1]
+  curr.archr.peaks <- readRDS(paste0(projs[i], '/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds'))$`Vent. CM`
+  
+  curr.edger.peaks$donor <- i
+  curr.archr.peaks$donor <- i
+  edger.list[[i]] <- curr.edger.peaks
+  archr.list[[i]] <- curr.archr.peaks
+}
+```
+
+```{r}
+edger.share <- getSharingMat(edger.list)
+archr.share <- getSharingMat(archr.list)
+```
+
+As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.
+
+```{r}
+a <- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (edgeR)', silent = T)[[4]]
+b <- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (ArchR)', silent = T)[[4]]
+gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs= list(a=a,b=b),ncol=2))
+```
+
+Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks. 
+
+### Motif enrichment
+
+Next we compare these two peak sets in terms of motif enrichment. Below we plot the enrichment of motifs in Vent. CM peaks from both methods using *aggregate donor* data for each cell-type. 
+
+```{r}
+archr_motifUp <- suppressMessages(peakAnnoEnrichment(seMarker = archrPeaks, ArchRProj = satac, peakAnnotation = "Motif", cutOff = "FDR <= 0.01 & Log2FC >= 0.5"))
+edger_motifup <- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, ArchRProj = satac, peakAnnotation = "Motif", cutOff = "FDR <= 0.01 & Log2FC >= 0.5"))
+```
+
+```{r}
+motifScatterPlot <- function(motifUp1, motifUp2){
+ df1 <- data.frame(TF1 = rownames(motifUp1), mlog10Padj1 = assay(motifUp1)[,7])
+ df2 <- data.frame(TF2 = rownames(motifUp2), mlog10Padj2 = assay(motifUp2)[,7])
+ df <- cbind(df1, df2)
+ 
+ ggplot(df, aes(mlog10Padj1, mlog10Padj2)) + 
+   geom_point(size = 1) +
+   ggrepel::geom_label_repel(
+     data = df[df$mlog10Padj1 > 100 | df$mlog10Padj2 > 100, ], aes(x = mlog10Padj1, y = mlog10Padj2, label = TF1), 
+     size = 3,
+     nudge_x = 2,
+     color = "black"
+   ) + ggClean() + 
+   ylab("-log10(P-adj) (edgeR)") + 
+   xlab("-log10(P-adj) (ArchR)") +
+   LegendOff()
+}
+```
+
+```{r}
+motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle('Motif Enrichment (Vent CM)')
+```
 
 ### Exploration: GTEx enrichment
 
@@ -106,41 +205,17 @@ GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We
 enrich.df <- read.delim('../eQTL_enrich/results/torus_celltypes_combined.enrichment', header=F, sep="")
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
-  xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash")
-```
-
-### Exploration: signal explained in finemapped heart eQTLs
-
-As expected, ventricular cardiomyocyte peaks are enriched with heart eQTLs, with endothelial peaks as second most enriched. 
-
-```{r}
-finemap.pips <- read.delim('../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt', sep='\t',header=T)
-chr <- sub(pattern='_.*', replacement = "", x = finemap.pips$SNP)
-start <- sub(pattern='chr[0-9]+_', replacement = "", x = finemap.pips$SNP)
-start <- as.numeric(sub(pattern='_.*', replacement = "", x = start))
-finemap.pip.gr <- GenomicRanges::GRanges(seqnames = chr, IRanges::IRanges(start = start, end = start), pip = finemap.pips$PIP)
+  xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash") + ggtitle('Enrichment of ArchR DA Peaks')
 ```
 
 ```{r}
-gr.list <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+enrich.df <- read.delim('../eQTL_enrich/results/DA_peaks_edgeR.enrichment', header=F, sep="")
+
+ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
+  xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash") + ggtitle('Enrichment of edgeR DA Peaks')
 ```
 
-```{r}
-percent.snps <- rep(0, length(gr.list))
-percent.pip <- rep(0, length(gr.list))
-enrich <- rep(0, length(gr.list))
-for(i in 1:length(gr.list)){
-  curr.peaks.gr <- gr.list[[i]]
-  x <- IRanges::subsetByOverlaps(finemap.pip.gr, curr.peaks.gr)
-  percent.snps[i] <- length(x)/length(finemap.pip.gr)
-  percent.pip[i] <- sum(x$pip)/sum(finemap.pip.gr$pip)
-  enrich[i] <- percent.pip[i]/percent.snps[i]
-}
-```
 
-```{r}
-type.names <- gsub(pattern = '_and_', replacement = '\n', x = names(gr.list))
-summ.df <- data.frame(percents= c(percent.snps, percent.pip)*100, Type=rep(c('% SNPs','% PIP'), rep(length(type.names), 2)), profile=rep(type.names, 2))
-ggplot(summ.df, aes(y=percents, x=profile, fill=Type)) + geom_bar(stat='identity', position='dodge') + ggClean(rotate_axis = F) + ylab('%') + xlab('Peak Cluster') + coord_flip()
-```
+
+
 
