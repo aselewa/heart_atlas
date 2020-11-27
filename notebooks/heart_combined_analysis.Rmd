@@ -158,9 +158,13 @@ archr.share <- getSharingMat(archr.list)
 
 As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.
 
-```{r }
+```{r}
 a <- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (edgeR)', silent = T)[[4]]
 b <- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (ArchR)', silent = T)[[4]]
+```
+
+```{r}
+gridExtra::grid.arrange(a,b, ncol=2)
 ```
 
 

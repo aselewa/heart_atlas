@@ -531,6 +531,8 @@ archr.share &lt;- getSharingMat(archr.list)</code></pre>
 <p>As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.</p>
 <pre class="r"><code>a &lt;- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (edgeR)&#39;, silent = T)[[4]]
 b &lt;- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (ArchR)&#39;, silent = T)[[4]]</code></pre>
+<pre class="r"><code>gridExtra::grid.arrange(a,b, ncol=2)</code></pre>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
 <p>Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks.</p>
 </div>
 </div>
@@ -557,7 +559,7 @@ edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, A
    LegendOff()
 }</code></pre>
 <pre class="r"><code>motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle(&#39;Motif Enrichment (Vent CM)&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 </div>
 <div id="exploration-gtex-enrichment" class="section level3">
 <h3>Exploration: GTEx enrichment</h3>
@@ -566,12 +568,12 @@ edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, A
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of ArchR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 <pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/DA_peaks_edgeR.enrichment&#39;, header=F, sep=&quot;&quot;)
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of edgeR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
 </div>
 
 
