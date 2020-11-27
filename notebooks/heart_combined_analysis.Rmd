@@ -111,7 +111,7 @@ edgeRpeaks@assays@data$FDR <- fdr.df
 
 #### Global comparison
 
-Both methods generally detect the same peaks differentially accessible peaks. Below is a plot of the log fold change from edgeR and from ArchR. 
+Both methods generally detect the same peaks differentially accessible peaks despite having different normalization strategies. edgeR normalizes by the total number of fragments in the pseudo-bulk library, while ArchR normalizes by the number of reads in TSS only. Below is a plot of the log fold change from edgeR and from ArchR. 
 
 ```{r logfc}
 arch.log2fc <- assays(archrPeaks)[['Log2FC']]$`Vent. CM`
