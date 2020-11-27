@@ -207,14 +207,14 @@ motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle('Motif Enrichment (Vent
 
 GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below. 
 
-```{r}
+```{r gtex1}
 enrich.df <- read.delim('../eQTL_enrich/results/torus_celltypes_combined.enrichment', header=F, sep="")
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
   xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash") + ggtitle('Enrichment of ArchR DA Peaks')
 ```
 
-```{r}
+```{r gtex2}
 enrich.df <- read.delim('../eQTL_enrich/results/DA_peaks_edgeR.enrichment', header=F, sep="")
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +

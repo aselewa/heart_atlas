@@ -568,12 +568,12 @@ edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, A
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of ArchR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/gtex1-1.png" width="672" /></p>
 <pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/DA_peaks_edgeR.enrichment&#39;, header=F, sep=&quot;&quot;)
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of edgeR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/gtex2-1.png" width="672" /></p>
 </div>
 
 
