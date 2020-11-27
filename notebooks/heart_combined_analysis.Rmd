@@ -85,6 +85,8 @@ Based on the union set, we create a single-cell binary peak accessibility matrix
 
 ### Differential accessibility analysis
 
+#### Approach
+
 I used two approaches for differential accessibility: 
 
 * one vs all single-cell differential accessibility (wilcoxon rank sum test)
@@ -107,7 +109,7 @@ edgeRpeaks@assays@data$Log2FC <- fc.df
 edgeRpeaks@assays@data$FDR <- fdr.df
 ```
 
-#### global comparison
+#### Global comparison
 
 Both methods generally detect the same peaks differentially accessible peaks. Below is a plot of the log fold change from edgeR and from ArchR. 
 
@@ -156,11 +158,15 @@ archr.share <- getSharingMat(archr.list)
 
 As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.
 
-```{r}
+```{r results = 'hide'}
 a <- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (edgeR)', silent = T)[[4]]
 b <- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (ArchR)', silent = T)[[4]]
+```
+
+```{r}
 gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs= list(a=a,b=b),ncol=2))
 ```
+
 
 Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks. 
 
