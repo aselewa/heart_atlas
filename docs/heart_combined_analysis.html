@@ -388,7 +388,7 @@ satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, s
 p1 &lt;- DimPlot(srna, label = F, group.by=&#39;region&#39;, cols = palette) + ggClean() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;regions&#39;, palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-6-1.png" width="960" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-2-1.png" width="960" /></p>
 <p>We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types:</p>
 <table>
 <caption>Heart cell markers</caption>
@@ -445,7 +445,7 @@ p1 + p2</code></pre>
 p1 &lt;- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitle(&#39;scRNA-seq&#39;)
 p2 &lt;- custom_archr_umap(archr_project = satac, group.by = &#39;CellTypes&#39;, palette = palette, legend = F, label = T) + ggtitle(&#39;scATAC-seq&#39;)
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-8-1.png" width="1344" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-4-1.png" width="1344" /></p>
 <p>We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in proportion?</p>
 <p>As expected, cardiomyocytes are the dominant cell type in both assays.</p>
 <pre class="r"><code>freq &lt;- table(Idents(srna))/length(Idents(srna))
@@ -455,7 +455,7 @@ freq &lt;- table(satac$CellTypes)/length(satac$CellTypes)
 p2 &lt;- make_freq_plot(freq, palette = palette) + LegendOff() + ggtitle(&#39;scATAC-seq&#39;)
 
 p1 + p2</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
 </div>
 <div id="cre-discovery" class="section level3">
 <h3>CRE discovery</h3>
@@ -466,7 +466,7 @@ peak.info.per &lt;- peak.info@metadata$PeakCallSummary
 pal &lt;- c(&quot;Distal&quot; = &quot;#60BA64&quot;, &quot;Exonic&quot; = &quot;#73C6FF&quot;, &quot;Intronic&quot; = &quot;#620FA3&quot;, &quot;Promoter&quot; = &quot;#FFC554&quot;)
 ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat=&#39;identity&#39;) + labs(fill=&#39;&#39;) +
   scale_fill_manual(values = pal) + ggClean(rotate_axis = T) + ylab(&quot;Number of Peaks \n (10^3)&quot;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
 <p>Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible.</p>
 </div>
 <div id="differential-accessibility-analysis" class="section level3">
@@ -508,7 +508,7 @@ get_density &lt;- function(x, y, ...) {
 }
 logfc.df$density &lt;- get_density(logfc.df$ArchR_logfc, logfc.df$edgeR_logfc)
 ggplot(logfc.df, aes(x=ArchR_logfc, y=edgeR_logfc, color=density)) + geom_point() + xlab(&#39;edgeR log2FC&#39;) + ylab(&#39;ArchR log2FC&#39;) + geom_abline(slope = 1, color=&quot;red&quot;, linetype=&quot;dashed&quot;) + ggClean() + scale_color_viridis() + ggtitle(&#39;Vent. CM &#39;) + ggClean()</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
 </div>
 <div id="reproducibility-across-donors" class="section level4">
 <h4>Reproducibility across donors</h4>
@@ -531,9 +531,9 @@ archr.share &lt;- getSharingMat(archr.list)</code></pre>
 <p>As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.</p>
 <pre class="r"><code>a &lt;- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (edgeR)&#39;, silent = T)[[4]]
 b &lt;- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = &#39;CM Peak Sharing (ArchR)&#39;, silent = T)[[4]]</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 <pre class="r"><code>gridExtra::grid.arrange(gridExtra::arrangeGrob(grobs= list(a=a,b=b),ncol=2))</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
 <p>Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks.</p>
 </div>
 </div>
@@ -560,7 +560,7 @@ edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, A
    LegendOff()
 }</code></pre>
 <pre class="r"><code>motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle(&#39;Motif Enrichment (Vent CM)&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
 </div>
 <div id="exploration-gtex-enrichment" class="section level3">
 <h3>Exploration: GTEx enrichment</h3>
@@ -569,12 +569,12 @@ edger_motifup &lt;- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, A
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of ArchR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 <pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/DA_peaks_edgeR.enrichment&#39;, header=F, sep=&quot;&quot;)
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
   xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of edgeR DA Peaks&#39;)</code></pre>
-<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
+<p><img src="heart_combined_analysis_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
 </div>
 
 
