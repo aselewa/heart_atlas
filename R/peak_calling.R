@@ -14,8 +14,13 @@ run_workflow <- function(archr_project_path){
   
   projHeart <- addGroupCoverages(ArchRProj = projHeart, groupBy = "CellTypes")
   projHeart <- addReproduciblePeakSet(ArchRProj = projHeart, groupBy = "CellTypes", pathToMacs2 = macs2, cutOff = 0.01, verbose = T)
-  awprojHeart <- addPeakMatrix(projHeart, force = T)
+  projHeart <- addPeakMatrix(projHeart, force = T)
   
+  projHeart <- addMotifAnnotations(ArchRProj = projHeart, motifSet = "cisbp", name = "Motif")
+  
+  projHeart <- addCoAccessibility(ArchRProj = projHeart, reducedDims = "IterativeLSI")
+  
+  # cell-type specific peaks
   markersPeaks <- getMarkerFeatures(ArchRProj = projHeart, 
                                     useMatrix = "PeakMatrix", 
                                     groupBy = "CellTypes", 
@@ -29,34 +34,17 @@ run_workflow <- function(archr_project_path){
   
   saveArchRProject(projHeart) 
   
-  # unsupervised clustering of peaks
-  peak.mat <- getMatrixFromProject(projHeart, useMatrix = "PeakMatrix", binarize = T)
+  # shared peaks
+  # ASSUMING all peaks have non-zero mean accessibility in each cell-type! Or else we do this for each cell-type iteratively
   peak.info <- getPeakSet(projHeart)
-  peak.mat <- peak.mat@assays@data$PeakMatrix
-  collapsedCellTypes <- projHeart$CellTypes
-  
-  if("Neuronal" %in% projHeart$CellTypes){ # not many cells in general
-    peak.mat <- peak.mat[, projHeart$CellTypes != "Neuronal"]
-    collapsedCellTypes <- collapsedCellTypes[collapsedCellTypes != "Neuronal"]
+  types <- names(markers)
+  for(t in types){
+    curr.gr <- markers[[t]]
+    hits <- GenomicRanges::findOverlaps(query = peak.info, subject = curr.gr)
+    peak.info <- peak.info[-subjectHits(hits),]
   }
-  collapsedCellTypes[collapsedCellTypes == "Myeloid" | collapsedCellTypes == "Lymphoid"] <- "Immune"
-  collapsedCellTypes[collapsedCellTypes == "Endothelial" | collapsedCellTypes == "Pericyte"] <- "EndoPericyte"
   
-  ideal.access <- getIdealAccess(cell_type_vec = collapsedCellTypes)
-  classify.mat <- peakToClusterBatch(peak.mat = peak.mat, ideal.mat = ideal.access, chunk.size = 1e5)
-
-  saveRDS(classify.mat, file = paste0(archr_project_path,'/PeakCalls/peak_to_cluster.mtx.rds'))
-
-  peak.profile <- apply(classify.mat, 1, which.max)
-  gr.list <- list()
-  types <- unique(collapsedCellTypes)
-  profiles <- generateBits(n = length(types))
-  for(i in 1:length(profiles)){
-    curr <- profiles[[i]]
-    profile_name <- paste0(types[which(curr==1)], collapse = '_and_')
-    gr.list[[profile_name]] <- peak.info[peak.profile == i]
-  }
-  saveRDS(gr.list, file = paste0(archr_project_path,'/PeakCalls/cluster_peaks.gr.rds'))
+  saveRDS(peak.info, file = paste0(archr_project_path, '/PeakCalls/Vent_CM_Shared_Peaks.gr.rds'))
   
 }
 

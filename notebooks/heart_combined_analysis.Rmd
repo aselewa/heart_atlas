@@ -221,6 +221,72 @@ ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, x
   xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash") + ggtitle('Enrichment of edgeR DA Peaks')
 ```
 
+### Heart eQTL Finemapping
+
+Here we focus on eQTLs that are finemapped with a posterior probability of association > 0.8. There are approximately 2,300 such SNPs.
+
+```{r}
+eqtl.pips <- read.delim('../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt', sep='\t', header = T)
+eqtl.pips <- eqtl.pips[eqtl.pips$PIP > 0.8,]
+eqtl.gr <- snpIDtoGR(eqtl.pips$SNP)
+eqtl.gr$pip <- eqtl.pips$PIP
+eqtl.gr$SNP <- eqtl.pips$SNP
+```
+
+Split ventrical cardiomyocyte peaks into cell-type specific and into shared.
+
+```{r}
+ventCalls <- readRDS('../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds')
+markers <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+
+vent.specific <- markers$`Vent. CM`
+hits <- GenomicRanges::findOverlaps(query = vent.specific, subject = ventCalls)
+vent.shared <- ventCalls[-subjectHits(hits),]
+```
+
+There are 48,012 cell-type specific peaks, and ~97,500 that are shared CM peaks.
+
+Overlap peaks with top eQTLs
+
+```{r}
+vent.specific.eqtls <- plyranges::join_overlap_inner(vent.specific, eqtl.gr)
+vent.shared.eqtls <- plyranges::join_overlap_inner(vent.shared, eqtl.gr)
+```
+
+Pull genomic annotations
+
+```{r}
+genomic.annots <- rtracklayer::import('/project2/xinhe/alan/hg38_annotations/gencode.v27.w.introns.gtf', format = 'gtf')
+genomic.annots <- genomic.annots[!(genomic.annots$type %in% c("transcript","gene","CDS")),]
+genomic.annots <- genomic.annots[genomic.annots$source=="HAVANA",]
+eqtl.annot <- plyranges::join_overlap_inner(eqtl.gr, genomic.annots)
+```
+
+Overlap eQTLs with exons, introns, etc.
+
+```{r}
+annot.freq <- as.data.frame(eqtl.annot@elementMetadata) %>% group_by(SNP) %>% count(type) %>% group_by(SNP) %>% mutate(f = n / sum(n))
+
+eqtlsIn <- length(unique(eqtl.annot$SNP))
+nIntergenic <- length(eqtl.gr) - eqtlsIn
+eqtl.dist <- c("intergenic"=nIntergenic)
+eqtl.dist["exon"] <- sum(annot.freq$f[annot.freq$type=="exon"])
+eqtl.dist["UTR"] <- sum(annot.freq$f[annot.freq$type=="UTR"])
+eqtl.dist["Specific Vent CM"] <- length(vent.specific.eqtls)
+eqtl.dist["Shared Vent CM"] <- length(vent.shared.eqtls)
+eqtl.dist["intronic"] <- sum(annot.freq$f[annot.freq$type=="intron"])
+
+eqtl.dist.df <- data.frame(freq=100*eqtl.dist/length(eqtl.gr), category=factor(names(eqtl.dist), levels=c("exon","intronic","UTR","intergenic","Specific Vent CM","Shared Vent CM")))
+```
+
+Distribution of top eQTLs across the genome. Most are in intronic regions which is reasonable given they are cis-eQTLs. About 6% are in the cell-type specific CM peaks, and ~24% are in the shared CM peaks (note that these peaks are disjoint sets).
+
+```{r}
+ggplot(eqtl.dist.df, aes(y=category, x=freq)) + geom_bar(stat="identity") + ggClean() + xlab("Percent") + ylab("Category") + ggtitle("Distribution of Top eQTLs")
+```
+
+
+
 
 
 

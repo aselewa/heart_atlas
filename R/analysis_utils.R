@@ -92,6 +92,16 @@ StringToGR <- function(st){
   return(gr)
 }
 
+snpIDtoGR <- function(id){
+  chr <- sub(pattern = '_.*', replacement = "", x = id)
+  tmp <- sub(pattern = 'chr[0-9]+_', replacement = "", x = id)
+  pos <- sub(pattern = '_.+', replacement = "", x = tmp)
+  
+  id.gr <- StringToGR(paste0(chr, ':',pos,'-',pos))
+  
+  return(id.gr)
+}
+
 qOverlapS <- function(q, s, minPoverlap){
   
   hits <- GenomicRanges::findOverlaps(query = q, subject = s)
