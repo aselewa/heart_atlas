@@ -11,7 +11,7 @@
 
 
 
-<title>Heart Atlas Project</title>
+<title>Heart eQTLs</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -362,32 +362,106 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Heart Atlas Project</h1>
+<h1 class="title toc-ignore">Heart eQTLs</h1>
 
 </div>
 
 
-<div id="introduction" class="section level3">
-<h3>Introduction</h3>
-<p>Here you will find links to analyses of the heart atlas project.</p>
-<div id="single-cell-analyses" class="section level4">
-<h4>Single-cell Analyses</h4>
-<ul>
-<li><a href="quality_control.html">Quality control</a></li>
-<li><a href="heart_03231_analysis.html">Donor 03231</a></li>
-<li><a href="heart_02207_analysis.html">Donor 02207</a></li>
-<li><a href="heart_02336_analysis.html">Donor 02336</a></li>
-<li><a href="heart_combined_analysis.html">Combined analysis</a></li>
-<li><a href="eqtl_enrichment.html">Cell-type specific eQTLs</a></li>
-</ul>
+<div id="exploration-gtex-enrichment" class="section level3">
+<h3>Exploration: GTEx enrichment</h3>
+<p>GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below.</p>
+<pre class="r"><code>enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/torus_celltypes_combined.enrichment&#39;, header=F, sep=&quot;&quot;)
+
+ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour=&quot;black&quot;, width=.1) + ggClean() +
+  xlab(&#39;log2 Enrichment&#39;) + ylab(&#39;Cell Type&#39;) + geom_vline(xintercept = 0, col=&#39;red&#39;, linetype = &quot;longdash&quot;) + ggtitle(&#39;Enrichment of ArchR DA Peaks&#39;)</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/gtex1-1.png" width="672" /></p>
 </div>
-<div id="metricsmethods" class="section level4">
-<h4>Metrics/methods</h4>
-<ul>
-<li><a href="cell_type_specificity.html">Notes on cell-type specificity of eQTLs</a></li>
-<li><a href="https://aselewa.github.io/multiomic_integration/">Evaluating Seurat integration in PBMCs</a></li>
-</ul>
-</div>
+<div id="heart-eqtl-finemapping" class="section level3">
+<h3>Heart eQTL Finemapping</h3>
+<p>Here we focus on eQTLs that are finemapped with a posterior probability of association &gt; 0.8. There are approximately 2,300 such SNPs.</p>
+<pre class="r"><code>eqtl.pips &lt;- read.delim(&#39;../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt&#39;, sep=&#39;\t&#39;, header = T)
+eqtl.pips &lt;- eqtl.pips[eqtl.pips$PIP &gt; 0.8,]
+eqtl.gr &lt;- snpIDtoGR(eqtl.pips$SNP)
+eqtl.gr$pip &lt;- eqtl.pips$PIP
+eqtl.gr$SNP &lt;- eqtl.pips$SNP
+
+rand.snps &lt;- readLines(&#39;../matched_SNPs/eQTL_top_pip_hg19_5batches/snpsnap_match_hg38.txt&#39;)
+rand.gr &lt;- StringToGR(rand.snps)
+rand.gr &lt;- rand.gr[seqnames(rand.gr) %in% paste0(&quot;chr&quot;,1:22),]
+seqlevels(rand.gr) &lt;-  paste0(&quot;chr&quot;,1:22)
+rand.gr$SNP &lt;- paste0(seqnames(rand.gr),&#39;_&#39;,start(rand.gr))</code></pre>
+<p>Get tissue activity of each eQTL from <a href="https://zenodo.org/record/3727189" class="uri">https://zenodo.org/record/3727189</a> (GTEx v8 paper)</p>
+<pre class="r"><code>eqtl.lfsr &lt;- suppressMessages(vroom::vroom(&#39;../eQTL_enrich/broadinstitute-gtex-v8-a014b43/data/Fig6C_all_top.z_lfsr.sig.pruned.txt.gz&#39;))
+tissues.active &lt;- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] &lt; 0.01, na.rm = T)
+eqtl.ntissues &lt;- data.frame(eqtl=eqtl.lfsr$variant, ntissues=tissues.active) %&gt;% group_by(eqtl) %&gt;% summarise(mean_tissues = mean(ntissues))</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<p>Add tissue activity to our eQTL genomic ranges object</p>
+<pre class="r"><code>eqtl.gr$ntissues.active &lt;- eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, eqtl.ntissues$eqtl)]
+eqtl.gr.low &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&lt;=10),]
+eqtl.gr.high &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&gt;=30),]</code></pre>
+<p>Split ventrical cardiomyocyte peaks into cell-type specific and into shared.</p>
+<pre class="r"><code>satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, showLogo = F))
+union.set &lt;- getPeakSet(satac)
+ventCalls &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds&#39;)
+markers &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds&#39;)
+
+vent.specific &lt;- markers$`Vent. CM`
+hits &lt;- GenomicRanges::findOverlaps(query = vent.specific, subject = ventCalls)
+vent.shared &lt;- ventCalls[-subjectHits(hits),]
+
+hits &lt;- GenomicRanges::findOverlaps(query = ventCalls, subject = union.set)
+non.cm.peaks &lt;- union.set[-subjectHits(hits)]</code></pre>
+<p>There are 48,012 cell-type specific peaks, and ~97,500 that are shared CM peaks.</p>
+<p>Overlap generic genomic annotations with top eQTLs</p>
+<pre class="r"><code>disjoint.annots &lt;- readRDS(&#39;../eQTL_enrich/annotations/hg38_disjoint_annotations.gr.rds&#39;)</code></pre>
+<p>Overlap eQTLs with exons, introns, etc.</p>
+<pre class="r"><code>eqtl.genome.dist.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr, genomic.annots = disjoint.annots)
+#eqtl.dist.low.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr.low, genomic.annots = disjoint.annots)
+#eqtl.dist.high.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr.high, genomic.annots = disjoint.annots)
+rand.genome.dist.df &lt;- SNPGenomeDistrib(snp.gr = rand.gr, genomic.annots = disjoint.annots)</code></pre>
+<p>Distribution of top eQTLs across the genome. Most are in intronic regions which is reasonable given they are cis-eQTLs. About 6% are in the cell-type specific CM peaks, and ~24% are in the shared CM peaks (note that these peaks are disjoint sets).</p>
+<pre class="r"><code>genomic.dist.df &lt;- Reduce(rbind, list(rand.genome.dist.df, eqtl.genome.dist.df))
+genomic.dist.df$SNPs &lt;- c(rep(&quot;Random SNPs&quot;, nrow(rand.genome.dist.df)),
+                          rep(&quot;eQTLs&quot;, nrow(eqtl.genome.dist.df)))
+
+eqtl.union.set &lt;- join_overlap_list(gr.list = list(&quot;Union Set&quot;=union.set), X = eqtl.gr)
+genomic.dist.df[&quot;Union eQTL&quot;,] &lt;- c(100*length(eqtl.union.set$`Union Set`)/length(eqtl.gr), &quot;Union Peak Set&quot;, &quot;eQTLs&quot;)
+rand.union.set &lt;- join_overlap_list(gr.list = list(&quot;Union Set&quot;=union.set), X = rand.gr)
+genomic.dist.df[&quot;Union Random&quot;,] &lt;- c(100*length(rand.union.set$`Union Set`)/length(rand.gr), &quot;Union Peak Set&quot;, &quot;Random SNPs&quot;)
+
+genomic.dist.df$freq &lt;- as.numeric(genomic.dist.df$freq)</code></pre>
+<p>Plot distributions</p>
+<pre class="r"><code>genomic.dist.df$category &lt;- factor(genomic.dist.df$category, levels = rev(c(&quot;Union Peak Set&quot;,&quot;exon&quot;,&quot;intronic&quot;,&quot;UTR&quot;,&quot;promoter&quot;,&quot;intergenic&quot;)))
+ggplot(genomic.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
+  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent SNPs&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + 
+  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;gray&quot;))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-361-1.png" width="672" /></p>
+<p>Overlap scATAC-seq peaks with top eQTLs</p>
+<pre class="r"><code>peaks.gr.list &lt;- list(&quot;CM Specific Peaks&quot;=vent.specific, &quot;CM Shared Peaks&quot;=vent.shared, &quot;Non-CM Peaks&quot;=non.cm.peaks)
+
+#peaks.eqtls &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
+peaks.eqtls.low &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.low)
+peaks.eqtls.high &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.high)
+#peaks.random &lt;- join_overlap_list(gr.list = peaks.gr.list, X = rand.gr)</code></pre>
+<pre class="r"><code>#freq &lt;- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
+#eqtl.dist.df &lt;- data.frame(freq=freq, category=names(freq))
+
+freq &lt;- sapply(peaks.eqtls.low, FUN = function(x){100*length(x)/length(eqtl.gr.low)})
+eqtl.dist.low.df &lt;- data.frame(freq=freq, category=names(freq))
+
+freq &lt;- sapply(peaks.eqtls.high, FUN = function(x){100*length(x)/length(eqtl.gr.high)})
+eqtl.dist.high.df &lt;- data.frame(freq=freq, category=names(freq))
+
+#freq &lt;- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
+#rand.dist.df &lt;- data.frame(freq=freq, category=names(freq))</code></pre>
+<pre class="r"><code>peak.dist.df &lt;- Reduce(rbind, list(eqtl.dist.low.df, eqtl.dist.high.df))
+peak.dist.df$SNPs &lt;- c(rep(&quot;eQTLs (nTissue &lt; 10)&quot;,nrow(eqtl.dist.low.df)), 
+                       rep(&quot;eQTLs (nTissue &gt; 30)&quot;,nrow(eqtl.dist.high.df)))</code></pre>
+<pre class="r"><code>peak.dist.df$category &lt;- factor(peak.dist.df$category, levels = rev(c(&quot;Non-CM Peaks&quot;,&quot;CM Shared Peaks&quot;, &quot;CM Specific Peaks&quot;)))
+ggplot(peak.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
+  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + 
+  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values = c(&quot;blue&quot;,&quot;red&quot;))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-365-1.png" width="672" /></p>
 </div>
 
 

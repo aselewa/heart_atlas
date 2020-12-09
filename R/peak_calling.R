@@ -15,10 +15,7 @@ run_workflow <- function(archr_project_path){
   projHeart <- addGroupCoverages(ArchRProj = projHeart, groupBy = "CellTypes")
   projHeart <- addReproduciblePeakSet(ArchRProj = projHeart, groupBy = "CellTypes", pathToMacs2 = macs2, cutOff = 0.01, verbose = T)
   projHeart <- addPeakMatrix(projHeart, force = T)
-  
   projHeart <- addMotifAnnotations(ArchRProj = projHeart, motifSet = "cisbp", name = "Motif")
-  
-  projHeart <- addCoAccessibility(ArchRProj = projHeart, reducedDims = "IterativeLSI")
   
   # cell-type specific peaks
   markersPeaks <- getMarkerFeatures(ArchRProj = projHeart, 

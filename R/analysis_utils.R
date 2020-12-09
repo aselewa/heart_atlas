@@ -114,6 +114,39 @@ qOverlapS <- function(q, s, minPoverlap){
   return(propIn)
 }
 
+SNPGenomeDistrib <- function(snp.gr, genomic.annots) {
+  
+  annot <- plyranges::join_overlap_inner(snp.gr, genomic.annots)
+  
+  annot.freq <- as.data.frame(annot@elementMetadata) %>% 
+    group_by(SNP) %>% 
+    count(type) %>% 
+    mutate(n_bin = 1*(n>0)) %>% 
+    group_by(SNP) %>% 
+    mutate(f = n_bin / sum(n_bin))
+  
+  snpsIn <- length(unique(annot$SNP))
+  nIntergenic <- length(snp.gr) - snpsIn
+  snp.dist <- c("intergenic"=nIntergenic)
+  snp.dist["exon"] <- sum(annot.freq$f[annot.freq$type=="exon"])
+  snp.dist["UTR"] <- sum(annot.freq$f[annot.freq$type=="UTR"])
+  snp.dist["intronic"] <- sum(annot.freq$f[annot.freq$type=="intron"])
+  snp.dist["promoter"] <- sum(annot.freq$f[annot.freq$type=="promoter"])
+  
+  snp.dist.df <- data.frame(freq=100*snp.dist/length(snp.gr), category=names(snp.dist))
+  snp.dist.df$category <- unfactor(snp.dist.df$category)
+  
+  snp.dist.df
+  
+}
+
+join_overlap_list <- function(gr.list, X){
+  res.list <- list()
+  for(n in names(gr.list)){
+    res.list[[n]] <- plyranges::join_overlap_inner(gr.list[[n]], X)
+  }
+  return(res.list)
+}
 
 getSharingMat <- function(gr.list){
   l <- length(gr.list)
