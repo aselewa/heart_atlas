@@ -20,7 +20,7 @@ The dimensionality reduction and clustering was done outside of this notebook an
 ```{r}
 suppressMessages(library(Seurat))
 suppressMessages(library(ArchR))
-suppressMessages(library(viridis))
+suppressMessages(library(ComplexHeatmap))
 suppressMessages(source('../R/analysis_utils.R'))
 
 srna <- readRDS('../seurat/Heart_RNA_Processed_Combined.rds')
@@ -40,8 +40,7 @@ p1 + p2
 We can visualize the clustering results with the inferred cell types. I used the following markers to define cell types: 
 
 ```{r, echo = F}
-markers.df <- data.frame(marker = c('TTN/MYBPC3',"MYH7","NPPA",'RGS5/ABCC9','MYH11/TAGLN','DCN/PDGFRA','PECAM1/VWF','PLP1','CDA8/LCK','CD14/FOLR2'),
-                         CellType = c('Cardiomyocytes','Vent. CM','Atrial CM','Pericyte','Smooth Muscle','Fibroblast','Endothelial','Neuronal','Lymphoid','Myeloid'))
+markers.df <- data.frame(marker = c('TTN/MYBPC3',"MYH7","NPPA",'RGS5/ABCC9','MYH11/TAGLN','DCN/PDGFRA','PECAM1/VWF','PLP1','CDA8/LCK','CD14/FOLR2'), CellType = c('Cardiomyocytes','Vent. CM','Atrial CM','Pericyte','Smooth Muscle','Fibroblast','Endothelial','Neuronal','Lymphoid','Myeloid'))
 knitr::kable(markers.df, caption = 'Heart cell markers')
 ```
 
@@ -52,7 +51,6 @@ p1 <- DimPlot(srna, label = T, cols = palette) + ggClean() + NoLegend() + ggtitl
 p2 <- custom_archr_umap(archr_project = satac, group.by = 'CellTypes', palette = palette, legend = F, label = T) + ggtitle('scATAC-seq')
 p1 + p2
 ```
-
 
 We recover 9 cell types in scRNA-seq and 7 in scATAC-seq. How do they compare in proportion?
 
@@ -81,128 +79,159 @@ ggplot(peak.info.per, aes(x=Group, y=Freq, fill=Var1)) + geom_bar(stat='identity
   scale_fill_manual(values = pal) + ggClean(rotate_axis = T) + ylab("Number of Peaks \n (10^3)")
 ```
 
-Based on the union set, we create a single-cell binary peak accessibility matrix and find the peaks that are differentially accessible. 
-
 ### Differential accessibility analysis
 
 #### Approach
 
 I used two approaches for differential accessibility: 
 
-* one vs all single-cell differential accessibility (wilcoxon rank sum test)
+* one vs all single-cell differential accessibility (Wilcoxon rank sum test)
 * one vs all pseudo-bulk differential accessibility in edgeR (as was done in Hocker et al.)
+
+In general, the one vs all single-cell method with Wilcoxon rank sum test has more consistent peaks across donors (shown below). While the edgeR method yields similar results in terms of motifs, Hocker et al. used each chamber as a sample, therefore the samples are not independent. 
+
+Because differential accessibility does not gaurantee features that are group-specific (only that they are upregulated), I came up with a procedure to get cell-type specific peaks. First, we set a threshold for the FDR and Log2FC (say 1% and 1, respectively). Then we count in how many cell-types every peak appears as differetially accessible. Finally, we only keep peaks that appear in a single cell-type at this FDR and log2FC. 
 
 ```{r}
 archrPeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds')
-edgePeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/edgeR_DA_peaks.gr.rds')
+pass_markers <- getMarkers(seMarker = archrPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
+
 ```
 
 ```{r}
-edgePeaks <- sapply(edgePeaks, function(x){sort(sortSeqlevels(x))})
-fdr.df <- as.data.frame(sapply(edgePeaks, function(x){x$FDR}))
-fc.df <- as.data.frame(sapply(edgePeaks, function(x){x$Log2FC}))
-fdr.df <- fdr.df[,archrPeaks@colData@rownames]
-fc.df <- fc.df[,archrPeaks@colData@rownames]
+union.peaks <- getPeakSet(satac)
+union.peaks.str <- GRToString(union.peaks)
+peak.count <- rep(0, length(union.peaks.str))
+peak.type <- rep(NA, length(union.peaks.str))
 
-edgeRpeaks <- archrPeaks
-edgeRpeaks@assays@data$Log2FC <- fc.df
-edgeRpeaks@assays@data$FDR <- fdr.df
-```
-
-#### Global comparison
-
-Both methods generally detect the same peaks differentially accessible peaks despite having different normalization strategies. edgeR normalizes by the total number of fragments in the pseudo-bulk library, while ArchR normalizes by the number of reads in TSS only. Below is a plot of the log fold change from edgeR and from ArchR. 
-
-```{r logfc}
-arch.log2fc <- assays(archrPeaks)[['Log2FC']]$`Vent. CM`
-arch.fdr <- assays(archrPeaks)[['FDR']]$`Vent. CM`
-edge.log2fc <- assays(edgeRpeaks)[['Log2FC']]$`Vent. CM`
-edge.fdr <- assays(edgeRpeaks)[['FDR']]$`Vent. CM`
-
-logfc.df <- data.frame(ArchR_logfc=arch.log2fc, edgeR_logfc=edge.log2fc)
-get_density <- function(x, y, ...) {
-  dens <- MASS::kde2d(x, y, ...)
-  ix <- findInterval(x, dens$x)
-  iy <- findInterval(y, dens$y)
-  ii <- cbind(ix, iy)
-  return(dens$z[ii])
+for(p in names(pass_markers)){
+  hits <- GenomicRanges::findOverlaps(query = union.peaks, subject = pass_markers[[p]])
+  peak.count[queryHits(hits)] <- 1 + peak.count[queryHits(hits)]
+  peak.type[queryHits(hits)] <- p
 }
-logfc.df$density <- get_density(logfc.df$ArchR_logfc, logfc.df$edgeR_logfc)
-ggplot(logfc.df, aes(x=ArchR_logfc, y=edgeR_logfc, color=density)) + geom_point() + xlab('edgeR log2FC') + ylab('ArchR log2FC') + geom_abline(slope = 1, color="red", linetype="dashed") + ggClean() + scale_color_viridis() + ggtitle('Vent. CM ') + ggClean()
+peak.df <- data.frame(peak.name=union.peaks.str, cell.type.count=peak.count, peak.type=peak.type, stringsAsFactors = F)
+peak.df <- peak.df[peak.df$cell.type.count==1, ]
 ```
 
-#### Reproducibility across donors
+```{r}
+mean.mat.df <- as.matrix(SummarizedExperiment::assays(archrPeaks)[["Mean"]])
+colnames(mean.mat.df) <- archrPeaks@colData@rownames
+rowD <- rowData(archrPeaks)
+row.names(mean.mat.df) <- paste0(rowD$seqnames,':',rowD$start,'-',rowD$end)
 
-Here I test which method yields better reproducibility across donors. Briefly, I obtained differentially accessible peaks from each donor (n = 3) using the ArchR and edgeR methods. Below I summarize how the Vent CM peaks are shared across donors with the two methods. 
+DA.mat <- mean.mat.df[peak.df$peak.name, ]
+```
 
 ```{r}
-projs <- list.files(path = '../ArchR', pattern = 'ArchR_project_*', full.names = T)
-archr.list <- list()
-edger.list <- list()
-for( i in 1:length(projs)){
-  curr.edger.peaks <- readRDS(paste0(projs[i], '/PeakCalls/edgeR_DA_peaks.gr.rds'))$`Vent. CM`
-  curr.edger.peaks <- curr.edger.peaks[curr.edger.peaks$FDR <= 0.01 & curr.edger.peaks$Log2FC >= 1]
-  curr.archr.peaks <- readRDS(paste0(projs[i], '/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds'))$`Vent. CM`
-  
-  curr.edger.peaks$donor <- i
-  curr.archr.peaks$donor <- i
-  edger.list[[i]] <- curr.edger.peaks
-  archr.list[[i]] <- curr.archr.peaks
+types <- c("Vent. CM", "Pericyte","Fibroblast","Endothelial","Lymphoid","Myeloid","Neuronal")
+mat.list <- list()
+splits <- c()
+for(t in types){
+  curr <- DA.mat[peak.df$peak.name[peak.df$peak.type==t],]
+  curr <- curr[order(curr[,t], decreasing = T),]
+  mat.list[[t]] <- curr
+  splits <- c(splits, rep(t,nrow(curr)))
 }
 ```
 
+Having obtained cell-type specific regulatory peaks, we can plot the per-cell-type average accessibility. As we can see, the peaks are largely accessible in only one cell-type. Note that these are not-zscores, but absolute measures of accessibility.
+
+```{r, fig.height=6, fig.width=8}
+mat.df <- Reduce(rbind, mat.list)
+mat.df <- mat.df[,types]
+Heatmap(matrix = mat.df, cluster_rows = F, cluster_columns = F, show_row_names = F, name = "Mean Accessibility",
+        col = circlize::colorRamp2(c(0, 0.1, 0.4), c("black","purple","yellow")), 
+        column_split = factor(colnames(mat.df), levels=types),
+        row_split = factor(splits, levels=types),
+        row_title = NULL,
+        column_title = NULL,
+        row_gap = unit(1, "mm"),
+        column_gap = unit(1, "mm"))
+```
+
+We can plot the same for Z-scores to see the degree of variance for each peak.
+
 ```{r}
-edger.share <- getSharingMat(edger.list)
-archr.share <- getSharingMat(archr.list)
+
+scaleTo <- 10^4
+DA.mat.scale <- log2(t(t(mean.mat.df)/colSums(mean.mat.df)) * scaleTo + 1)
+zscore.mat <- sweep(DA.mat.scale - rowMeans(DA.mat.scale), 1, matrixStats::rowSds(DA.mat.scale), `/`)
+row.names(zscore.mat) <- paste0(rowD$seqnames,':',rowD$start,'-',rowD$end)
+zscore.mat <- zscore.mat[peak.df$peak.name,]
+
+types <- c("Vent. CM", "Pericyte","Fibroblast","Endothelial","Lymphoid","Myeloid","Neuronal")
+mat.list <- list()
+for(t in types){
+  curr <- zscore.mat[peak.df$peak.name[peak.df$peak.type==t],]
+  curr <- curr[order(curr[,t], decreasing = T),]
+  mat.list[[t]] <- curr
+}
+mat.df <- Reduce(rbind, mat.list)
+mat.df <- t(mat.df[,types])
 ```
 
-As we can see below, the sharing is generally higher using ArchRs method, which is somewhat expected given that ArchR has a built in method for finding reproducible peaks.
-
-```{r}
-a <- pheatmap::pheatmap(edger.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (edgeR)', silent = T)[[4]]
-b <- pheatmap::pheatmap(archr.share, cluster_cols = F, cluster_rows = F, main = 'CM Peak Sharing (ArchR)', silent = T)[[4]]
+```{r, fig.height=4, fig.width=10}
+p_diff_peaks <- Heatmap(matrix = mat.df, 
+                        cluster_rows = F, 
+                        cluster_columns = F, 
+                        show_row_names = T, 
+                        show_column_names = F, 
+                        name = "Row Accessibility\nZ-scores",
+                        col = circlize::colorRamp2(c(-2,0,2), c("lightblue","white","firebrick")),
+                        width = 4)
+p_diff_peaks
 ```
 
-```{r heat}
-gridExtra::grid.arrange(a,b, ncol=2)
-```
-
-
-Conclusion: ArchR differentially accessible peaks are more reproducible across donors than edgeR peaks. 
 
 ### Motif enrichment
 
 Next we compare these two peak sets in terms of motif enrichment. Below we plot the enrichment of motifs in Vent. CM peaks from both methods using *aggregate donor* data for each cell-type. 
 
 ```{r}
-archr_motifUp <- suppressMessages(peakAnnoEnrichment(seMarker = archrPeaks, ArchRProj = satac, peakAnnotation = "Motif", cutOff = "FDR <= 0.01 & Log2FC >= 0.5"))
-edger_motifup <- suppressMessages(peakAnnoEnrichment(seMarker = edgeRpeaks, ArchRProj = satac, peakAnnotation = "Motif", cutOff = "FDR <= 0.01 & Log2FC >= 0.5"))
+archr_motifUp <- suppressMessages(peakAnnoEnrichment(seMarker = archrPeaks, 
+                                                     ArchRProj = satac, 
+                                                     peakAnnotation = "Motif", 
+                                                     cutOff = "FDR <= 0.01 & Log2FC >= 1"))
+```
+
+
+```{r}
+CURR_CELL_TYPE <- "Vent. CM"
+TF.fdr.mat <- archr_motifUp@assays@data$mlog10Padj
+TF.fdr.mat <- TF.fdr.mat[,types]
+TF.fdr <- TF.fdr.mat[ ,CURR_CELL_TYPE, drop = FALSE]
+TF.fdr <- TF.fdr[order(TF.fdr[CURR_CELL_TYPE], decreasing = T),,drop=F]
+signif.TFs <- row.names(TF.fdr)[TF.fdr[,1] > 1]
+TFs <- sub('_.*', replacement = "", x = signif.TFs)
 ```
 
 ```{r}
-motifScatterPlot <- function(motifUp1, motifUp2){
- df1 <- data.frame(TF1 = rownames(motifUp1), mlog10Padj1 = assay(motifUp1)[,7])
- df2 <- data.frame(TF2 = rownames(motifUp2), mlog10Padj2 = assay(motifUp2)[,7])
- df <- cbind(df1, df2)
- 
- ggplot(df, aes(mlog10Padj1, mlog10Padj2)) + 
-   geom_point(size = 1) +
-   ggrepel::geom_label_repel(
-     data = df[df$mlog10Padj1 > 100 | df$mlog10Padj2 > 100, ], aes(x = mlog10Padj1, y = mlog10Padj2, label = TF1), 
-     size = 3,
-     nudge_x = 2,
-     color = "black"
-   ) + ggClean() + 
-   ylab("-log10(P-adj) (edgeR)") + 
-   xlab("-log10(P-adj) (ArchR)") +
-   LegendOff()
+topN <- 5
+topMotifs <- c()
+for(t in colnames(TF.fdr.mat)){
+  idx <- order(TF.fdr.mat[,t], decreasing = T)[1:topN]
+  currTop <- rownames(TF.fdr.mat)[idx]
+  topMotifs <- c(topMotifs, currTop)
 }
+top.FDR.mat <- t(as.matrix(TF.fdr.mat[topMotifs,]))
+top.FDR.mat[top.FDR.mat > 100] <- 100
 ```
 
-```{r motif}
-motifScatterPlot(archr_motifUp, edger_motifup) + ggtitle('Motif Enrichment (Vent CM)')
+```{r fig.width=10, fig.height=6}
+motif_mat <- Heatmap(matrix = top.FDR.mat, cluster_rows = F, cluster_columns = F, 
+        col = circlize::colorRamp2(c(0,33,66,100), c("lightgrey","dodgerblue","purple","black")), border = T,
+        column_split = factor(colnames(top.FDR.mat), levels = colnames(top.FDR.mat)),
+        row_split = factor(rownames(top.FDR.mat), levels = rownames(top.FDR.mat)),
+        row_title = NULL,
+        column_title = NULL,
+        row_gap = unit(0, "mm"),
+        column_gap = unit(0, "mm"),
+        width = 5, name = "Motif Enrichment (-log10 pval)")
+motif_mat
 ```
 
-
-
+```{r}
+p_comb <- p_diff_peaks + motif_mat
+draw(p_comb, main_heatmap="Motif Enrichment (-log10 pval)")
+```
 

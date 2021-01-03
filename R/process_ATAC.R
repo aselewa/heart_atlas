@@ -58,7 +58,7 @@ make_ATAC_arrows <- function(){
     inputFiles = inputFiles,
     sampleNames = names(inputFiles),
     filterTSS = 6,
-    filterFrags = 3000,
+    filterFrags = 10000,
     addTileMat = TRUE,
     addGeneScoreMat = TRUE
   )
@@ -99,3 +99,13 @@ main <- function() {
 if(length(args)>0){
   main()
 }
+
+projHeart <- ArchRProject(
+  ArrowFiles = list.files(path = 'ArchR/ArchR_ArrowFiles/', pattern = '*.arrow', full.names = T),
+  outputDirectory = 'ArchR/ArchR_heart_2',
+  copyArrows = TRUE 
+)
+projHeart <- subsetCells(ArchRProj = projHeart, cellNames = projHeart$cellNames[projHeart$nFrags > 10000])
+projHeart$regions <- plyr::mapvalues(x = projHeart$Sample, from = ATAC_SAMPLES, to = ATAC_REGIONS)
+projHeart$individual <- plyr::mapvalues(x = projHeart$Sample, from = ATAC_SAMPLES, to = ATAC_INDIVIDUALS)
+

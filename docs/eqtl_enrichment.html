@@ -391,14 +391,34 @@ rand.gr &lt;- rand.gr[seqnames(rand.gr) %in% paste0(&quot;chr&quot;,1:22),]
 seqlevels(rand.gr) &lt;-  paste0(&quot;chr&quot;,1:22)
 rand.gr$SNP &lt;- paste0(seqnames(rand.gr),&#39;_&#39;,start(rand.gr))</code></pre>
 <p>Get tissue activity of each eQTL from <a href="https://zenodo.org/record/3727189" class="uri">https://zenodo.org/record/3727189</a> (GTEx v8 paper)</p>
-<pre class="r"><code>eqtl.lfsr &lt;- suppressMessages(vroom::vroom(&#39;../eQTL_enrich/broadinstitute-gtex-v8-a014b43/data/Fig6C_all_top.z_lfsr.sig.pruned.txt.gz&#39;))
-tissues.active &lt;- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] &lt; 0.01, na.rm = T)
-eqtl.ntissues &lt;- data.frame(eqtl=eqtl.lfsr$variant, ntissues=tissues.active) %&gt;% group_by(eqtl) %&gt;% summarise(mean_tissues = mean(ntissues))</code></pre>
+<pre class="r"><code>eqtl.lfsr &lt;- suppressMessages(vroom::vroom(&#39;../eQTL_enrich/broadinstitute-gtex-v8-a014b43/data/Fig6C_all_top.z_lfsr.sig.pruned.txt.gz&#39;))</code></pre>
+<p>Keep SNPs with PIP &gt; 0.8 AND they have LFSR data.</p>
+<pre class="r"><code>same.snps &lt;- intersect(eqtl.gr$SNP, eqtl.lfsr$variant)
+heart.eqtl.lfsr &lt;- eqtl.lfsr[eqtl.lfsr$variant %in% same.snps,]
+eqtl.gr &lt;- eqtl.gr[eqtl.gr$SNP %in% same.snps]</code></pre>
+<p>Find the mean number of tissues per eQTL.</p>
+<pre class="r"><code>tissues.active &lt;- rowSums(heart.eqtl.lfsr[,3:ncol(heart.eqtl.lfsr)] &lt; 0.05, na.rm = T) 
+eqtl.ntissues &lt;- data.frame(eqtl=heart.eqtl.lfsr$variant, ntissues=tissues.active) %&gt;% group_by(eqtl) %&gt;% summarise(mean_tissues = mean(ntissues))</code></pre>
 <pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>eqtl.ntissues &lt;- eqtl.ntissues[eqtl.ntissues$mean_tissues &gt; 0,]</code></pre>
+</div>
+<div id="tissue-sharing-of-eqtls" class="section level3">
+<h3>Tissue Sharing of eQTLs</h3>
+<p>Below we plot the frequency of tissues active in causal heart eQTLs. Typically eQTLs have a bimodal distribution with peaks at 1-5 tissues and 45-50 tissues. We see that for heart eQTLs, they are generally shared across tissues.</p>
+<pre class="r"><code>bks &lt;- seq(0, 50, 5)
+bks[1] &lt;- 1
+labs &lt;- sapply(1:(length(bks)-1), function(x){paste0(bks[x],&#39;-&#39;,bks[x+1])})
+bin.count &lt;- table(cut(eqtl.ntissues$mean_tissues, breaks = bks, right=FALSE, labels = labs))
+bin.count.df &lt;- data.frame(count=as.numeric(bin.count), breaks=factor(names(bin.count), levels = labs))
+ggplot(bin.count.df, aes(x=breaks, y=count)) + geom_bar(stat=&quot;identity&quot;) + ggClean() + xlab(&#39;Tissues with LFSR &lt; 0.05&#39;) + ylab(&#39;Number of eQTLs&#39;) + ggtitle(&#39;Tissue Sharing of Heart eQTLs&#39;)</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-148-1.png" width="672" /></p>
 <p>Add tissue activity to our eQTL genomic ranges object</p>
 <pre class="r"><code>eqtl.gr$ntissues.active &lt;- eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, eqtl.ntissues$eqtl)]
 eqtl.gr.low &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&lt;=10),]
 eqtl.gr.high &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&gt;=30),]</code></pre>
+</div>
+<div id="distribution-of-heart-eqtls" class="section level3">
+<h3>Distribution of heart eQTLs</h3>
 <p>Split ventrical cardiomyocyte peaks into cell-type specific and into shared.</p>
 <pre class="r"><code>satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, showLogo = F))
 union.set &lt;- getPeakSet(satac)
@@ -433,18 +453,17 @@ genomic.dist.df$freq &lt;- as.numeric(genomic.dist.df$freq)</code></pre>
 <p>Plot distributions</p>
 <pre class="r"><code>genomic.dist.df$category &lt;- factor(genomic.dist.df$category, levels = rev(c(&quot;Union Peak Set&quot;,&quot;exon&quot;,&quot;intronic&quot;,&quot;UTR&quot;,&quot;promoter&quot;,&quot;intergenic&quot;)))
 ggplot(genomic.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent SNPs&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + 
-  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;gray&quot;))</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-361-1.png" width="672" /></p>
+  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent SNPs&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;gray&quot;))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-154-1.png" width="672" /></p>
 <p>Overlap scATAC-seq peaks with top eQTLs</p>
-<pre class="r"><code>peaks.gr.list &lt;- list(&quot;CM Specific Peaks&quot;=vent.specific, &quot;CM Shared Peaks&quot;=vent.shared, &quot;Non-CM Peaks&quot;=non.cm.peaks)
+<pre class="r"><code>peaks.gr.list &lt;- list(&quot;CM Specific&quot;=vent.specific, &quot;CM Shared&quot;=vent.shared, &quot;Non-CM&quot;=non.cm.peaks)
 
-#peaks.eqtls &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
+peaks.eqtls &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
 peaks.eqtls.low &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.low)
 peaks.eqtls.high &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.high)
 #peaks.random &lt;- join_overlap_list(gr.list = peaks.gr.list, X = rand.gr)</code></pre>
-<pre class="r"><code>#freq &lt;- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
-#eqtl.dist.df &lt;- data.frame(freq=freq, category=names(freq))
+<pre class="r"><code>freq &lt;- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
+eqtl.dist.df &lt;- data.frame(freq=freq, category=names(freq))
 
 freq &lt;- sapply(peaks.eqtls.low, FUN = function(x){100*length(x)/length(eqtl.gr.low)})
 eqtl.dist.low.df &lt;- data.frame(freq=freq, category=names(freq))
@@ -452,16 +471,17 @@ eqtl.dist.low.df &lt;- data.frame(freq=freq, category=names(freq))
 freq &lt;- sapply(peaks.eqtls.high, FUN = function(x){100*length(x)/length(eqtl.gr.high)})
 eqtl.dist.high.df &lt;- data.frame(freq=freq, category=names(freq))
 
+peak.dist.df &lt;- Reduce(rbind, list(eqtl.dist.df, eqtl.dist.low.df, eqtl.dist.high.df))
+peak.dist.df$SNPs &lt;- c(rep(&quot;eQTLs (all)&quot;,nrow(eqtl.dist.df)),
+                       rep(&quot;eQTLs (nTissue &lt; 10)&quot;,nrow(eqtl.dist.low.df)), 
+                       rep(&quot;eQTLs (nTissue &gt; 30)&quot;,nrow(eqtl.dist.high.df)))
 #freq &lt;- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
 #rand.dist.df &lt;- data.frame(freq=freq, category=names(freq))</code></pre>
-<pre class="r"><code>peak.dist.df &lt;- Reduce(rbind, list(eqtl.dist.low.df, eqtl.dist.high.df))
-peak.dist.df$SNPs &lt;- c(rep(&quot;eQTLs (nTissue &lt; 10)&quot;,nrow(eqtl.dist.low.df)), 
-                       rep(&quot;eQTLs (nTissue &gt; 30)&quot;,nrow(eqtl.dist.high.df)))</code></pre>
-<pre class="r"><code>peak.dist.df$category &lt;- factor(peak.dist.df$category, levels = rev(c(&quot;Non-CM Peaks&quot;,&quot;CM Shared Peaks&quot;, &quot;CM Specific Peaks&quot;)))
+<pre class="r"><code>peak.dist.df$category &lt;- factor(peak.dist.df$category, levels = rev(c(&quot;Non-CM&quot;,&quot;CM Shared&quot;, &quot;CM Specific&quot;)))
 ggplot(peak.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + 
-  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values = c(&quot;blue&quot;,&quot;red&quot;))</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-365-1.png" width="672" /></p>
+  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Top eQTLs in Peak Sets&quot;) + 
+  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;blue&quot;,&quot;red&quot;))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-157-1.png" width="672" /></p>
 </div>
 
 

@@ -40,17 +40,64 @@ Get tissue activity of each eQTL from https://zenodo.org/record/3727189 (GTEx v8
 
 ```{r}
 eqtl.lfsr <- suppressMessages(vroom::vroom('../eQTL_enrich/broadinstitute-gtex-v8-a014b43/data/Fig6C_all_top.z_lfsr.sig.pruned.txt.gz'))
-tissues.active <- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] < 0.01, na.rm = T)
-eqtl.ntissues <- data.frame(eqtl=eqtl.lfsr$variant, ntissues=tissues.active) %>% group_by(eqtl) %>% summarise(mean_tissues = mean(ntissues))
 ```
+
+Keep SNPs with PIP > 0.8 AND they have LFSR data.
+
+```{r}
+same.snps <- intersect(eqtl.gr$SNP, eqtl.lfsr$variant)
+heart.eqtl.lfsr <- eqtl.lfsr[eqtl.lfsr$variant %in% same.snps,]
+eqtl.gr <- eqtl.gr[eqtl.gr$SNP %in% same.snps]
+```
+
+Find the mean number of tissues per eQTL. 
+
+```{r}
+# all eqtls
+tissues.active <- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] < 0.05, na.rm = T) 
+all.eqtl.ntissues <- data.frame(eqtl=eqtl.lfsr$variant, ntissues=tissues.active) %>% group_by(eqtl) %>% summarise(mean_tissues = mean(ntissues))
+all.eqtl.ntissues <- all.eqtl.ntissues[all.eqtl.ntissues$mean_tissues > 0,]
+
+# heart eqtls
+tissues.active <- rowSums(heart.eqtl.lfsr[,3:ncol(heart.eqtl.lfsr)] < 0.05, na.rm = T) 
+heart.eqtl.ntissues <- data.frame(eqtl=heart.eqtl.lfsr$variant, ntissues=tissues.active) %>% group_by(eqtl) %>% summarise(mean_tissues = mean(ntissues))
+heart.eqtl.ntissues <- heart.eqtl.ntissues[heart.eqtl.ntissues$mean_tissues > 0,]
+```
+
+### Tissue Sharing of eQTLs
+
+Below we plot the frequency of tissues active in causal heart eQTLs. Typically eQTLs have a bimodal distribution with peaks at 1-5 tissues and 45-50 tissues. We see that for heart eQTLs, they are generally shared across tissues. 
+
+```{r}
+betterHist <- function(X){
+ bks <- seq(0, 50, 5)
+ labs <- sapply(1:(length(bks)-1), function(x){paste0(bks[x]+1,'-',bks[x+1])})
+ bin.count <- table(cut(X$mean_tissues, breaks = bks, labels = labs))
+ bin.count <- bin.count/sum(bin.count)
+ bin.count.df <- data.frame(count=as.numeric(bin.count), breaks=factor(names(bin.count), levels = labs))
+}
+
+all.eqtl.bin <- betterHist(all.eqtl.ntissues)
+heart.eqtl.bin <- betterHist(heart.eqtl.ntissues)
+
+result <- rbind(all.eqtl.bin, heart.eqtl.bin)
+result$eQTLs <- c(rep(c("All","Heart"), each=nrow(all.eqtl.bin)))
+```
+
+```{r}
+ggplot(result, aes(x=breaks, y=count, fill=eQTLs)) + geom_bar(stat="identity", position = "dodge", width=0.8) + ggClean() + xlab('Tissues with LFSR < 0.05') + ylab('Proportion of eQTLs') + ggtitle('Tissue Sharing of Heart eQTLs') + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + scale_fill_manual(values = c("#D6604D","#4393C3"))
+```
+
 
 Add tissue activity to our eQTL genomic ranges object
 
 ```{r}
-eqtl.gr$ntissues.active <- eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, eqtl.ntissues$eqtl)]
+eqtl.gr$ntissues.active <- heart.eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, heart.eqtl.ntissues$eqtl)]
 eqtl.gr.low <- eqtl.gr[which(eqtl.gr$ntissues.active<=10),]
 eqtl.gr.high <- eqtl.gr[which(eqtl.gr$ntissues.active>=30),]
 ```
+
+### Distribution of heart eQTLs
 
 Split ventrical cardiomyocyte peaks into cell-type specific and into shared.
 
@@ -58,9 +105,9 @@ Split ventrical cardiomyocyte peaks into cell-type specific and into shared.
 satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart/', showLogo = F))
 union.set <- getPeakSet(satac)
 ventCalls <- readRDS('../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds')
-markers <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+markers <- readRDS('../ArchR/ArchR_heart/PeakCalls/CM_specific_peaks.gr.rds')
 
-vent.specific <- markers$`Vent. CM`
+vent.specific <- markers
 hits <- GenomicRanges::findOverlaps(query = vent.specific, subject = ventCalls)
 vent.shared <- ventCalls[-subjectHits(hits),]
 
@@ -105,24 +152,23 @@ Plot distributions
 ```{r}
 genomic.dist.df$category <- factor(genomic.dist.df$category, levels = rev(c("Union Peak Set","exon","intronic","UTR","promoter","intergenic")))
 ggplot(genomic.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Percent SNPs") + ylab("Category") + ggtitle("Distribution of Top eQTLs") + 
-  geom_hline(yintercept = 5.5, linetype="dashed") + scale_fill_manual(values = c("black","gray"))
+  geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Percent SNPs") + ylab("Category") + ggtitle("Distribution of Top eQTLs") + scale_fill_manual(values = c("black","gray"))
 ```
 
 Overlap scATAC-seq peaks with top eQTLs
 
 ```{r}
-peaks.gr.list <- list("CM Specific Peaks"=vent.specific, "CM Shared Peaks"=vent.shared, "Non-CM Peaks"=non.cm.peaks)
+peaks.gr.list <- list("CM Specific"=vent.specific, "CM Shared"=vent.shared, "Non-CM"=non.cm.peaks)
 
-#peaks.eqtls <- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
+peaks.eqtls <- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
 peaks.eqtls.low <- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.low)
 peaks.eqtls.high <- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.high)
-#peaks.random <- join_overlap_list(gr.list = peaks.gr.list, X = rand.gr)
+peaks.random <- join_overlap_list(gr.list = peaks.gr.list, X = rand.gr)
 ```
 
 ```{r}
-#freq <- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
-#eqtl.dist.df <- data.frame(freq=freq, category=names(freq))
+freq <- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
+eqtl.dist.df <- data.frame(freq=freq, category=names(freq))
 
 freq <- sapply(peaks.eqtls.low, FUN = function(x){100*length(x)/length(eqtl.gr.low)})
 eqtl.dist.low.df <- data.frame(freq=freq, category=names(freq))
@@ -130,25 +176,35 @@ eqtl.dist.low.df <- data.frame(freq=freq, category=names(freq))
 freq <- sapply(peaks.eqtls.high, FUN = function(x){100*length(x)/length(eqtl.gr.high)})
 eqtl.dist.high.df <- data.frame(freq=freq, category=names(freq))
 
+freq <- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
+rand.dist.df <- data.frame(freq=freq, category=names(freq))
+
+peak.dist.df <- Reduce(rbind, list(eqtl.dist.df, eqtl.dist.low.df, eqtl.dist.high.df, rand.dist.df))
+peak.dist.df$SNPs <- c(rep("eQTLs (all)",nrow(eqtl.dist.df)),
+                       rep("eQTLs (nTissue < 10)",nrow(eqtl.dist.low.df)), 
+                       rep("eQTLs (nTissue > 30)",nrow(eqtl.dist.high.df)),
+                       rep("Random SNPs", nrow(rand.dist.df)))
 #freq <- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
 #rand.dist.df <- data.frame(freq=freq, category=names(freq))
 ```
 
 ```{r}
-peak.dist.df <- Reduce(rbind, list(eqtl.dist.low.df, eqtl.dist.high.df))
-peak.dist.df$SNPs <- c(rep("eQTLs (nTissue < 10)",nrow(eqtl.dist.low.df)), 
-                       rep("eQTLs (nTissue > 30)",nrow(eqtl.dist.high.df)))
+peak.dist.df$category <- factor(peak.dist.df$category, levels = rev(c("Non-CM","CM Shared", "CM Specific","Random SNPs")))
+ggplot(peak.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
+  geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Percent") + ylab("Category") + ggtitle("Top eQTLs in Peak Sets") + 
+  geom_hline(yintercept = 5.5, linetype="dashed") + scale_fill_manual(values =  c("#000000","#D6604D","#4393C3","grey"))
 ```
+
+### aFib GWAS Enrichment
 
 ```{r}
-peak.dist.df$category <- factor(peak.dist.df$category, levels = rev(c("Non-CM Peaks","CM Shared Peaks", "CM Specific Peaks")))
-ggplot(peak.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Percent") + ylab("Category") + ggtitle("Distribution of Top eQTLs") + 
-  geom_hline(yintercept = 5.5, linetype="dashed") + scale_fill_manual(values = c("blue","red"))
+enrich.df <- readRDS('../GWAS/Torus_Enrichment_Results_Univariate.df.rds')
+enrich.df$term <- sub(pattern = '_hg19.bed.1', replacement = "", x = enrich.df$term)
+enrich.df$term <- factor(enrich.df$term, levels=enrich.df$term[order(enrich.df$estimate, decreasing = F)])
+enrich.df <- enrich.df[enrich.df$term != "non_CM_eQTLs",]
+enrich.df <- enrich.df[enrich.df$term != "non_CM_peaks",]
+
+ggplot(enrich.df, aes(y=term, x=estimate)) + geom_point(size=3, color='darkred') + geom_errorbar(aes(xmin=low, xmax=high), width=0)  + xlab('Log2 Enrichment') + ggtitle('aFib GWAS Enrichment') + geom_vline(xintercept = 0, color='red', linetype='dashed') + theme_bw() + theme(text = element_text(size=16)) + ylab('')
 ```
-
-
-
-
 
 
