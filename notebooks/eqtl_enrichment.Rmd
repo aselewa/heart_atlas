@@ -7,11 +7,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
 ### Exploration: GTEx enrichment
 
 GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below. 
 
 ```{r gtex1}
+library(ArchR)
+source('../R/analysis_utils.R')
+
 enrich.df <- read.delim('../eQTL_enrich/results/torus_celltypes_combined.enrichment', header=F, sep="")
 
 ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
@@ -154,6 +158,7 @@ genomic.dist.df$category <- factor(genomic.dist.df$category, levels = rev(c("Uni
 ggplot(genomic.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
   geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Percent SNPs") + ylab("Category") + ggtitle("Distribution of Top eQTLs") + scale_fill_manual(values = c("black","gray"))
 ```
+
 
 Overlap scATAC-seq peaks with top eQTLs
 

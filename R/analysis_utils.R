@@ -120,7 +120,7 @@ SNPGenomeDistrib <- function(snp.gr, genomic.annots) {
   
   annot.freq <- as.data.frame(annot@elementMetadata) %>% 
     group_by(SNP) %>% 
-    count(type) %>% 
+    dplyr::count(type) %>% 
     mutate(n_bin = 1*(n>0)) %>% 
     group_by(SNP) %>% 
     mutate(f = n_bin / sum(n_bin))
