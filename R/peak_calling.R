@@ -31,8 +31,8 @@ saveArchRProject(projHeart)
   
 projHeart <- addMotifAnnotations(ArchRProj = projHeart, motifSet = "cisbp", name = "Motif", force = T)
 projHeart <- addDeviationsMatrix(ArchRProj = projHeart, peakAnnotation = "Motif", force = T)
-satac <- addGeneIntegrationMatrix(
-  ArchRProj = satac, 
+projHeart <- addGeneIntegrationMatrix(
+  ArchRProj = projHeart, 
   useMatrix = "GeneScoreMatrix",
   matrixName = "GeneIntegrationMatrix",
   reducedDims = "harmony",
@@ -45,26 +45,6 @@ satac <- addGeneIntegrationMatrix(
   nameScore = "predictedScore"
 )
 
-create_torus_annotations <- function(snpmap, gr.list){
-  
-  celltypes <- names(gr.list)
-  for(c in celltypes){
-    overlap <- IRanges::subsetByOverlaps(snpmap, gr.list[[c]])
-    snpsIn <- unique(overlap$snp)
-    if(length(snpsIn) > 0){
-      annot <- snpmap@elementMetadata
-      n <- gsub(pattern = " ", replacement = "", c)
-      n <- gsub(pattern = "/", replacement = "", n)
-      annot[,paste0(n,'_d')] <- ifelse(annot$snp %in% snpsIn, 1, 0)
-      vroom::vroom_write(as_tibble(annot), path = paste0('eQTL_enrich/annotations/DA_peaks_',n,'_edgeR_peaks.txt.gz')) 
-    }
-  }
-}
+saveArchRProject(projHeart) 
 
-projects <- list.files(path = 'ArchR', pattern = "ArchR_project_*", full.names = )
-
-run_workflow('ArchR/ArchR_heart/')
-
-snpmap <- readRDS('eQTL_enrich/metadata/hg38_SNP_map.gr.rds')
-create_torus_annotations(snpmap, gr.list = gr.list)
 

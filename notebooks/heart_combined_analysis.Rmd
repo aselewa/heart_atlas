@@ -95,7 +95,6 @@ Because differential accessibility does not gaurantee features that are group-sp
 ```{r}
 archrPeaks <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_markerPeaks.rds')
 pass_markers <- getMarkers(seMarker = archrPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
-
 ```
 
 ```{r}
@@ -109,6 +108,7 @@ for(p in names(pass_markers)){
   peak.count[queryHits(hits)] <- 1 + peak.count[queryHits(hits)]
   peak.type[queryHits(hits)] <- p
 }
+
 peak.df <- data.frame(peak.name=union.peaks.str, cell.type.count=peak.count, peak.type=peak.type, stringsAsFactors = F)
 peak.df <- peak.df[peak.df$cell.type.count==1, ]
 ```

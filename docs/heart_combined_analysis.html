@@ -491,6 +491,7 @@ for(p in names(pass_markers)){
   peak.count[queryHits(hits)] &lt;- 1 + peak.count[queryHits(hits)]
   peak.type[queryHits(hits)] &lt;- p
 }
+
 peak.df &lt;- data.frame(peak.name=union.peaks.str, cell.type.count=peak.count, peak.type=peak.type, stringsAsFactors = F)
 peak.df &lt;- peak.df[peak.df$cell.type.count==1, ]</code></pre>
 <pre class="r"><code>mean.mat.df &lt;- as.matrix(SummarizedExperiment::assays(archrPeaks)[[&quot;Mean&quot;]])

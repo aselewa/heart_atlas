@@ -10,7 +10,28 @@ library(Seurat)
 library(ArchR)
 library(ggplot2)
 library(dplyr)
+library(gridExtra)
 source('../R/analysis_utils.R')
+```
+
+```{r}
+get_density <- function(x, y, ...) {
+  dens <- MASS::kde2d(x, y, ...)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
+```
+
+```{r}
+get_density <- function(x, y, ...) {
+  dens <- MASS::kde2d(x, y, ...)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
 ```
 
 ### scRNA-seq
@@ -51,22 +72,33 @@ ggplot(qc.df, aes(x = rank, y=umi, color=Donor)) + geom_line(aes(linetype = Type
 This plot shows how many genes are detected at each level of UMI count. We use UMI count as a proxy for read count which we do not record directly. This plot is useful for setting lower and upper limits on features as to filter doublets and background barcodes. 
 
 ```{r}
-qc.df <- data.frame(umi = srna$nCount_RNA/10^4, features=srna$nFeature_RNA/1000, Donor=srna$individual)
-ggplot(qc.df, aes(x=umi, y=features, color=Donor)) + geom_point(alpha=0.5) + ggClean() + xlab(expression('UMI ('%*% 10^4*')')) + ylab(expression('Features (' %*% 10^3*')'))
+qc.df <- data.frame(umi = srna$nCount_RNA/10^4, features=srna$nFeature_RNA/1000, sample=srna$dataset, stringsAsFactors = F)
+samples <- unique(srna$dataset)
+plist <- list()
+for(s in samples){
+  curr.qc.df <- qc.df[qc.df$sample == s,]
+  curr.qc.df$density <- get_density(curr.qc.df$umi, curr.qc.df$features, n = 100)
+  plist[[s]] <- ggplot(curr.qc.df, aes(x=umi, y=features, color=density)) + geom_point(alpha=0.5) + ggClean() + xlab("") + ylab("") + scale_colour_gradientn(colours = c("lightblue","yellow","red")) + LegendOff() + geom_hline(yintercept = 0.1, linetype="dashed") + geom_vline(xintercept = 1, linetype="dashed")
+}
 ```
+
+```{r}
+do.call(grid.arrange, plist)
+```
+
 
 ### scATAC-seq
 
 ```{r}
-d22 <- loadArchRProject('../ArchR_project_02207/', showLogo = F)
-d23 <- loadArchRProject('../ArchR_project_02336/', showLogo = F)
-d32 <- loadArchRProject('../ArchR_project_03231/', showLogo = F)
+d22 <- loadArchRProject('../ArchR/ArchR_project_02207/', showLogo = F)
+d23 <- loadArchRProject('../ArchR/ArchR_project_02336/', showLogo = F)
+d32 <- loadArchRProject('../ArchR/ArchR_project_03231/', showLogo = F)
 ```
 
 #### Library size distribution
 
 ```{r}
-comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart/', showLogo = F))
+comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_2/', showLogo = F))
 ```
 
 ```{r}
@@ -94,16 +126,31 @@ legend(x = 16, y = 0.3, legend = c("02207","02336","03231"), pch = 16, col=c("bl
 This shows the distribution of TSS enrichment across cells. Cells with low value of TSS enrichment are low quality. 
 
 ```{r}
-tss.df <- data.frame(tss.enrich = c(d22$TSSEnrichment, d23$TSSEnrichment, d32$TSSEnrichment), 
-                     Donor = c(rep('02207', length(d22$cellNames)), rep('02336', length(d23$cellNames)), rep('03231', length(d32$cellNames))))
+tss.df <- data.frame(tss.enrich = comb$TSSEnrichment,
+                     nfrag  = log10(comb$nMonoFrags), 
+                     sample = comb$Sample, 
+                     donor = comb$individual,
+                     stringsAsFactors = F)
+```
+
+
+```{r}
+plist <- list()
+samples <- unique(tss.df$sample)
+for(s in samples){
+  
+  curr.tss.df <- tss.df[tss.df$sample==s,]
+  curr.tss.df$density <- get_density(x = curr.tss.df$tss.enrich, y = curr.tss.df$nfrag, n = 50)
+  
+  p <- ggplot(curr.tss.df, aes(x=tss.enrich, y=nfrag, color=density)) + geom_point() + scale_colour_gradientn(colours = c("lightblue","yellow","red")) + ggClean() + ylim(c(2.5, 5)) + geom_hline(yintercept = 3, linetype="dashed") + geom_vline(xintercept = 5, linetype="dashed") + LegendOff() + xlab("") + ylab("")
+  plist[[s]] <- p
+}
 ```
 
 ```{r}
-ggplot(tss.df) + stat_density(aes(x=tss.enrich, color=Donor), geom="line", position="identity", size=1.5) + ggClean() + xlab('TSS Enrichment') + 
-    theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank())
+do.call("grid.arrange",plist)
 ```
+
 
 #### Fragment size distribution
 

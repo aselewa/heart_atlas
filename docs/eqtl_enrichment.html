@@ -370,8 +370,7 @@ div.tocify {
 <div id="exploration-gtex-enrichment" class="section level3">
 <h3>Exploration: GTEx enrichment</h3>
 <p>GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below.</p>
-<pre class="r"><code>library(ArchR)
-source(&#39;../R/analysis_utils.R&#39;)
+<pre class="r"><code>source(&#39;../R/analysis_utils.R&#39;)
 
 enrich.df &lt;- read.delim(&#39;../eQTL_enrich/results/torus_celltypes_combined.enrichment&#39;, header=F, sep=&quot;&quot;)
 
@@ -382,13 +381,12 @@ ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, x
 <div id="heart-eqtl-finemapping" class="section level3">
 <h3>Heart eQTL Finemapping</h3>
 <p>Here we focus on eQTLs that are finemapped with a posterior probability of association &gt; 0.8. There are approximately 2,300 such SNPs.</p>
-<pre class="r"><code>eqtl.pips &lt;- read.delim(&#39;../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/SNP_PIP_df.txt&#39;, sep=&#39;\t&#39;, header = T)
-eqtl.pips &lt;- eqtl.pips[eqtl.pips$PIP &gt; 0.8,]
-eqtl.gr &lt;- snpIDtoGR(eqtl.pips$SNP)
-eqtl.gr$pip &lt;- eqtl.pips$PIP
-eqtl.gr$SNP &lt;- eqtl.pips$SNP
-
-rand.snps &lt;- readLines(&#39;../matched_SNPs/eQTL_top_pip_hg19_5batches/snpsnap_match_hg38.txt&#39;)
+<pre class="r"><code>finemap.res &lt;- suppressMessages(readr::read_tsv(&#39;../eQTL_enrich/gtex_finemapping/GTEx_v8_finemapping_DAPG/Heart_LV_Finemapping_CS95.txt&#39;, col_names = F))
+colnames(finemap.res) &lt;- c(&quot;tissue&quot;,&quot;gene&quot;,&quot;cluster_id&quot;,&quot;cluster_pip&quot;,&quot;variant_id&quot;,&quot;variant_pip&quot;)</code></pre>
+<pre class="r"><code>high_pip_eqtls &lt;- unique(finemap.res$variant_id[finemap.res$variant_pip&gt;0.8])
+eqtl.gr &lt;- snpIDtoGR(high_pip_eqtls)
+eqtl.gr$SNP &lt;- high_pip_eqtls</code></pre>
+<pre class="r"><code>rand.snps &lt;- readLines(&#39;../matched_SNPs/eQTL_top_pip_hg19_5batches/snpsnap_match_hg38.txt&#39;)
 rand.gr &lt;- StringToGR(rand.snps)
 rand.gr &lt;- rand.gr[seqnames(rand.gr) %in% paste0(&quot;chr&quot;,1:22),]
 seqlevels(rand.gr) &lt;-  paste0(&quot;chr&quot;,1:22)
@@ -401,13 +399,13 @@ heart.eqtl.lfsr &lt;- eqtl.lfsr[eqtl.lfsr$variant %in% same.snps,]
 eqtl.gr &lt;- eqtl.gr[eqtl.gr$SNP %in% same.snps]</code></pre>
 <p>Find the mean number of tissues per eQTL.</p>
 <pre class="r"><code># all eqtls
-tissues.active &lt;- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] &lt; 0.05, na.rm = T) 
+tissues.active &lt;- rowSums(eqtl.lfsr[,3:ncol(eqtl.lfsr)] &lt; 0.01, na.rm = T) 
 all.eqtl.ntissues &lt;- data.frame(eqtl=eqtl.lfsr$variant, ntissues=tissues.active) %&gt;% group_by(eqtl) %&gt;% summarise(mean_tissues = mean(ntissues))</code></pre>
 <pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
 <pre class="r"><code>all.eqtl.ntissues &lt;- all.eqtl.ntissues[all.eqtl.ntissues$mean_tissues &gt; 0,]
 
 # heart eqtls
-tissues.active &lt;- rowSums(heart.eqtl.lfsr[,3:ncol(heart.eqtl.lfsr)] &lt; 0.05, na.rm = T) 
+tissues.active &lt;- rowSums(heart.eqtl.lfsr[,3:ncol(heart.eqtl.lfsr)] &lt; 0.01, na.rm = T) 
 heart.eqtl.ntissues &lt;- data.frame(eqtl=heart.eqtl.lfsr$variant, ntissues=tissues.active) %&gt;% group_by(eqtl) %&gt;% summarise(mean_tissues = mean(ntissues))</code></pre>
 <pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
 <pre class="r"><code>heart.eqtl.ntissues &lt;- heart.eqtl.ntissues[heart.eqtl.ntissues$mean_tissues &gt; 0,]</code></pre>
@@ -428,82 +426,143 @@ heart.eqtl.bin &lt;- betterHist(heart.eqtl.ntissues)
 
 result &lt;- rbind(all.eqtl.bin, heart.eqtl.bin)
 result$eQTLs &lt;- c(rep(c(&quot;All&quot;,&quot;Heart&quot;), each=nrow(all.eqtl.bin)))</code></pre>
-<pre class="r"><code>ggplot(result, aes(x=breaks, y=count, fill=eQTLs)) + geom_bar(stat=&quot;identity&quot;, position = &quot;dodge&quot;, width=0.8) + ggClean() + xlab(&#39;Tissues with LFSR &lt; 0.05&#39;) + ylab(&#39;Proportion of eQTLs&#39;) + ggtitle(&#39;Tissue Sharing of Heart eQTLs&#39;) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + scale_fill_manual(values = c(&quot;#D6604D&quot;,&quot;#4393C3&quot;))</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+<pre class="r"><code>ggplot(result, aes(x=breaks, y=count, fill=eQTLs)) + geom_bar(stat=&quot;identity&quot;, position = &quot;dodge&quot;, width=0.8) + ggClean() + xlab(&#39;Tissues with LFSR &lt; 0.01&#39;) + ylab(&#39;Proportion of eQTLs&#39;) + ggtitle(&#39;Tissue Sharing of Heart eQTLs&#39;) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + scale_fill_manual(values = c(&quot;#D6604D&quot;,&quot;#4393C3&quot;))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-47-1.png" width="672" /></p>
 <p>Add tissue activity to our eQTL genomic ranges object</p>
 <pre class="r"><code>eqtl.gr$ntissues.active &lt;- heart.eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, heart.eqtl.ntissues$eqtl)]
-eqtl.gr.low &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&lt;=10),]
-eqtl.gr.high &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&gt;=30),]</code></pre>
+#eqtl.gr.low &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&lt;=10),]
+#eqtl.gr.high &lt;- eqtl.gr[which(eqtl.gr$ntissues.active&gt;=30),]</code></pre>
 </div>
 <div id="distribution-of-heart-eqtls" class="section level3">
 <h3>Distribution of heart eQTLs</h3>
-<p>Split ventrical cardiomyocyte peaks into cell-type specific and into shared.</p>
-<pre class="r"><code>satac &lt;- suppressMessages(loadArchRProject(&#39;../ArchR/ArchR_heart/&#39;, showLogo = F))
-union.set &lt;- getPeakSet(satac)
-ventCalls &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds&#39;)
-markers &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/CM_specific_peaks.gr.rds&#39;)
-
-vent.specific &lt;- markers
-hits &lt;- GenomicRanges::findOverlaps(query = vent.specific, subject = ventCalls)
-vent.shared &lt;- ventCalls[-subjectHits(hits),]
-
-hits &lt;- GenomicRanges::findOverlaps(query = ventCalls, subject = union.set)
-non.cm.peaks &lt;- union.set[-subjectHits(hits)]</code></pre>
-<p>There are 48,012 cell-type specific peaks, and ~97,500 that are shared CM peaks.</p>
 <p>Overlap generic genomic annotations with top eQTLs</p>
-<pre class="r"><code>disjoint.annots &lt;- readRDS(&#39;../eQTL_enrich/annotations/hg38_disjoint_annotations.gr.rds&#39;)</code></pre>
+<pre class="r"><code>disjoint.annots &lt;- readRDS(&#39;../eQTL_enrich/annotations/hg38_disjoint_annotations.gr.rds&#39;)
+exon.annots &lt;- disjoint.annots[disjoint.annots$type == &quot;exon&quot;,]
+utr.annots &lt;- disjoint.annots[disjoint.annots$type == &quot;UTR&quot;,]
+intron.annots &lt;- disjoint.annots[disjoint.annots$type == &quot;intron&quot;,]</code></pre>
+<pre class="r"><code>satac &lt;- ArchR::loadArchRProject(path = &#39;../ArchR/ArchR_heart/&#39;, showLogo = F)</code></pre>
+<pre><code>## Successfully loaded ArchRProject!</code></pre>
+<pre class="r"><code>annots &lt;- as.list(ArchR::geneAnnoHg38)
+#annots$promoters &lt;- extendGR(resize(annots$genes, 1, &quot;start&quot;), upstream = 2000, downstream = 100)
+#annots$exons &lt;- removeOverlaps(X = annots$exons, to.remove = annots$promoters)</code></pre>
+<p>Split ventrical cardiomyocyte peaks into cell-type specific and into shared.</p>
+<pre class="r"><code>union.set &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/UnionSet.gr.rds&#39;)
+union.exons &lt;- union.set[union.set$peakType == &quot;Exonic&quot;, ]
+
+ventCalls &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds&#39;)
+markers &lt;- readRDS(&#39;../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds&#39;)
+vent.specific &lt;- markers$`Vent. CM`
+
+# remove Exonic peaks (because we have exon and UTR annotation)
+union.set &lt;- removeOverlaps(X = union.set, to.remove = union.exons) 
+ventCalls &lt;- removeOverlaps(X = ventCalls, to.remove = union.exons)
+vent.specific &lt;- removeOverlaps(X = vent.specific, to.remove = union.exons)
+
+vent.shared &lt;- removeOverlaps(X = ventCalls, to.remove = vent.specific)
+non.cm.peaks &lt;- removeOverlaps(X = union.set, to.remove = ventCalls)
+non.cm.peaks &lt;- removeOverlaps(X = non.cm.peaks, to.remove = vent.specific)
+
+intron.nonpeak &lt;- removeOverlaps(intron.annots, to.remove = union.set)
+intron.nonpeak &lt;- removeOverlaps(intron.nonpeak, to.remove = vent.specific)
+intron.nonpeak &lt;- removeOverlaps(intron.nonpeak, to.remove = vent.shared)</code></pre>
 <p>Overlap eQTLs with exons, introns, etc.</p>
-<pre class="r"><code>eqtl.genome.dist.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr, genomic.annots = disjoint.annots)
-#eqtl.dist.low.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr.low, genomic.annots = disjoint.annots)
-#eqtl.dist.high.df &lt;- SNPGenomeDistrib(snp.gr = eqtl.gr.high, genomic.annots = disjoint.annots)
-rand.genome.dist.df &lt;- SNPGenomeDistrib(snp.gr = rand.gr, genomic.annots = disjoint.annots)</code></pre>
-<p>Distribution of top eQTLs across the genome. Most are in intronic regions which is reasonable given they are cis-eQTLs. About 6% are in the cell-type specific CM peaks, and ~24% are in the shared CM peaks (note that these peaks are disjoint sets).</p>
-<pre class="r"><code>genomic.dist.df &lt;- Reduce(rbind, list(rand.genome.dist.df, eqtl.genome.dist.df))
-genomic.dist.df$SNPs &lt;- c(rep(&quot;Random SNPs&quot;, nrow(rand.genome.dist.df)),
-                          rep(&quot;eQTLs&quot;, nrow(eqtl.genome.dist.df)))
-
-eqtl.union.set &lt;- join_overlap_list(gr.list = list(&quot;Union Set&quot;=union.set), X = eqtl.gr)
-genomic.dist.df[&quot;Union eQTL&quot;,] &lt;- c(100*length(eqtl.union.set$`Union Set`)/length(eqtl.gr), &quot;Union Peak Set&quot;, &quot;eQTLs&quot;)
-rand.union.set &lt;- join_overlap_list(gr.list = list(&quot;Union Set&quot;=union.set), X = rand.gr)
-genomic.dist.df[&quot;Union Random&quot;,] &lt;- c(100*length(rand.union.set$`Union Set`)/length(rand.gr), &quot;Union Peak Set&quot;, &quot;Random SNPs&quot;)
-
-genomic.dist.df$freq &lt;- as.numeric(genomic.dist.df$freq)</code></pre>
-<p>Plot distributions</p>
-<pre class="r"><code>genomic.dist.df$category &lt;- factor(genomic.dist.df$category, levels = rev(c(&quot;Union Peak Set&quot;,&quot;exon&quot;,&quot;intronic&quot;,&quot;UTR&quot;,&quot;promoter&quot;,&quot;intergenic&quot;)))
-ggplot(genomic.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent SNPs&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top eQTLs&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;gray&quot;))</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-31-1.png" width="672" /></p>
-<p>Overlap scATAC-seq peaks with top eQTLs</p>
-<pre class="r"><code>peaks.gr.list &lt;- list(&quot;CM Specific&quot;=vent.specific, &quot;CM Shared&quot;=vent.shared, &quot;Non-CM&quot;=non.cm.peaks)
+<pre class="r"><code>peaks.gr.list &lt;- list(&quot;CM Specific&quot; = vent.specific, 
+                      &quot;CM Shared&quot; = vent.shared,
+                      &quot;Non-CM&quot; = non.cm.peaks, 
+                      &quot;Intronic&quot; = intron.nonpeak,
+                      &quot;Exon&quot; = exon.annots, 
+                      &quot;UTR&quot; = utr.annots)
 
 peaks.eqtls &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr)
-peaks.eqtls.low &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.low)
-peaks.eqtls.high &lt;- join_overlap_list(gr.list = peaks.gr.list, X = eqtl.gr.high)
 peaks.random &lt;- join_overlap_list(gr.list = peaks.gr.list, X = rand.gr)</code></pre>
-<pre class="r"><code>freq &lt;- sapply(peaks.eqtls, FUN = function(x){100*length(x)/length(eqtl.gr)})
-eqtl.dist.df &lt;- data.frame(freq=freq, category=names(freq))
+<pre class="r"><code>snpsIn &lt;- unique(
+  unlist(
+    sapply(peaks.eqtls, function(x){x$SNP})
+  )
+)
+peaks.eqtls$Unassigned &lt;- eqtl.gr[!(eqtl.gr$SNP %in% snpsIn),]
 
-freq &lt;- sapply(peaks.eqtls.low, FUN = function(x){100*length(x)/length(eqtl.gr.low)})
-eqtl.dist.low.df &lt;- data.frame(freq=freq, category=names(freq))
+snpsIn &lt;- unique(
+  unlist(
+    sapply(peaks.random, function(x){x$SNP})
+  )
+)
+peaks.random$Unassigned &lt;- rand.gr[!(rand.gr$SNP %in% snpsIn),]</code></pre>
+<pre class="r"><code>peak.dist.df &lt;- as.data.frame(sapply(peaks.eqtls, FUN = function(x){length(x)/length(eqtl.gr)}))
+colnames(peak.dist.df) &lt;- c(&quot;freq&quot;)
+peak.dist.df$category &lt;- rownames(peak.dist.df)
 
-freq &lt;- sapply(peaks.eqtls.high, FUN = function(x){100*length(x)/length(eqtl.gr.high)})
-eqtl.dist.high.df &lt;- data.frame(freq=freq, category=names(freq))
+random.dist.df &lt;- as.data.frame(sapply(peaks.random, FUN = function(x){length(x)/length(rand.gr)}))
+colnames(random.dist.df) &lt;- c(&quot;freq&quot;)
+random.dist.df$category &lt;- rownames(random.dist.df)</code></pre>
+<pre class="r"><code>peak.set.dist.df &lt;- Reduce(rbind, list(random.dist.df, peak.dist.df))
+peak.set.dist.df$SNPs &lt;- c(rep(&quot;Random SNPs&quot;, nrow(random.dist.df)),
+                          rep(&quot;eQTLs&quot;, nrow(peak.dist.df)))</code></pre>
+<pre class="r"><code>plot.levels &lt;- c(&quot;Exon&quot;,&quot;UTR&quot;,&quot;Intronic&quot;,&quot;CM Specific&quot;,&quot;CM Shared&quot;, &quot;Non-CM&quot;, &quot;Unassigned&quot;)
+peak.set.dist.df$category &lt;- factor(peak.set.dist.df$category, 
+                                    levels = rev(plot.levels))
 
-freq &lt;- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
-rand.dist.df &lt;- data.frame(freq=freq, category=names(freq))
+#png(&#39;wc_distribution_1.png&#39;, width=1500, height=800, res=150)
+ggplot(peak.set.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
+  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Wc (prop. of SNPs)&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Distribution of Top Heart eQTLs&quot;) + scale_fill_manual(values = c(&quot;black&quot;,&quot;gray&quot;))  + coord_cartesian(xlim=c(0, 0.4))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-56-1.png" width="672" /></p>
+<pre class="r"><code>#dev.off()</code></pre>
+<p>Tissue sharing patterns in scATAC-seq peak sets</p>
+<pre class="r"><code>peaks.tissue.sharing &lt;- sapply(peaks.eqtls, function(x){x$ntissues.active}) 
+peaks.tissue.sharing$`Union Set` &lt;- NULL
+peaks.tissue.sharing &lt;- setNames(unlist(peaks.tissue.sharing, use.names=F),rep(names(peaks.tissue.sharing), lengths(peaks.tissue.sharing)))
+peaks.tissue.sharing.df &lt;- data.frame(category=names(peaks.tissue.sharing), ntissues=peaks.tissue.sharing)
+peaks.tissue.sharing.df$category &lt;- factor(peaks.tissue.sharing.df$category, levels=rev(plot.levels))
+peaks.tissue.sharing.df &lt;- peaks.tissue.sharing.df[!is.na(peaks.tissue.sharing.df$ntissues),]</code></pre>
+<pre class="r"><code>pc_shared &lt;- peaks.tissue.sharing.df %&gt;% group_by(category) %&gt;% summarise(p_shared = mean(ntissues &gt; 15, na.rm = T))</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>#png(&quot;p_c_shared.png&quot;, width=1000, height=800, res=150)
+ggplot(pc_shared, aes(y = category, x = p_shared)) + geom_bar(stat=&quot;identity&quot;) + ggClean() + xlab(&quot;Pc (prob. sharing)&quot;) + ylab(&quot;Category&quot;)</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-58-1.png" width="672" /></p>
+<pre class="r"><code>#dev.off()</code></pre>
+<pre class="r"><code>#png(&quot;sharing_violin.png&quot;, width=800, height=1400, res=150)
 
-peak.dist.df &lt;- Reduce(rbind, list(eqtl.dist.df, eqtl.dist.low.df, eqtl.dist.high.df, rand.dist.df))
-peak.dist.df$SNPs &lt;- c(rep(&quot;eQTLs (all)&quot;,nrow(eqtl.dist.df)),
-                       rep(&quot;eQTLs (nTissue &lt; 10)&quot;,nrow(eqtl.dist.low.df)), 
-                       rep(&quot;eQTLs (nTissue &gt; 30)&quot;,nrow(eqtl.dist.high.df)),
-                       rep(&quot;Random SNPs&quot;, nrow(rand.dist.df)))
-#freq &lt;- sapply(peaks.random, FUN = function(x){100*length(x)/length(rand.gr)})
-#rand.dist.df &lt;- data.frame(freq=freq, category=names(freq))</code></pre>
-<pre class="r"><code>peak.dist.df$category &lt;- factor(peak.dist.df$category, levels = rev(c(&quot;Non-CM&quot;,&quot;CM Shared&quot;, &quot;CM Specific&quot;,&quot;Random SNPs&quot;)))
-ggplot(peak.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
-  geom_bar(stat=&quot;identity&quot;, position=&quot;dodge&quot;) + ggClean() + xlab(&quot;Percent&quot;) + ylab(&quot;Category&quot;) + ggtitle(&quot;Top eQTLs in Peak Sets&quot;) + 
-  geom_hline(yintercept = 5.5, linetype=&quot;dashed&quot;) + scale_fill_manual(values =  c(&quot;#000000&quot;,&quot;#D6604D&quot;,&quot;#4393C3&quot;,&quot;grey&quot;))</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-34-1.png" width="672" /></p>
+ggplot(peaks.tissue.sharing.df, aes(y=category, x=ntissues)) + 
+  geom_violin(fill=&quot;lightblue&quot;) + 
+  geom_boxplot(width=0.1) + 
+  ggClean() + LegendOff() + xlab(&quot;Tissues Active (LFSR &lt; 0.01)&quot;) + ylab(&quot;&quot;) +
+  scale_x_continuous(breaks=seq(0,50,10))</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-59-1.png" width="672" /></p>
+<pre class="r"><code>#dev.off()</code></pre>
+<p>Expression patterns</p>
+<pre class="r"><code>high_pip_genes &lt;- finemap.res$gene[finemap.res$variant_id %in% peaks.eqtls$`CM Specific`$SNP]
+high_pip_genes &lt;- sub(&#39;[.].*&#39;, &#39;&#39;, high_pip_genes)
+high_pip_gene_symbol &lt;- ensembldb::select(EnsDb.Hsapiens.v86::EnsDb.Hsapiens.v86, keys= high_pip_genes, keytype = &quot;GENEID&quot;, columns = &quot;SYMBOL&quot;)
+high_pip_gene_symbol &lt;- high_pip_gene_symbol$SYMBOL</code></pre>
+<pre class="r"><code>srna &lt;- readRDS(&#39;../seurat/Heart_RNA_Processed_Combined.rds&#39;)</code></pre>
+<pre class="r"><code>get_cell_type_expr &lt;- function(srna, genes){
+  rna.mat &lt;- srna@assays$RNA@data
+  cm.specific.exp &lt;- rna.mat[rownames(rna.mat) %in% genes,]
+  celltypes &lt;- unique(Seurat::Idents(srna))
+  mean.exp &lt;- list()
+  for(t in celltypes){
+    mean.exp[[t]] &lt;- rowMeans(cm.specific.exp[,Seurat::Idents(srna) == t])
+  }
+  exp.mat &lt;- as.data.frame(mean.exp)
+  exp.mat[,&quot;Cardiomyocytes&quot;] &lt;- rowMeans(exp.mat[,c(&quot;Vent..CM&quot;,&quot;Atrial.CM&quot;)])
+  exp.mat[,c(&quot;Vent..CM&quot;,&quot;Atrial.CM&quot;)] &lt;- NULL
+  exp.mat &lt;- as.matrix(exp.mat)
+  exp.mat.z &lt;- sweep(exp.mat - rowMeans(exp.mat), MARGIN = 1, STAT = rowSds(exp.mat), FUN = &#39;/&#39;) 
+  
+  return(exp.mat.z)
+}</code></pre>
+<pre class="r"><code>CM.specific.egenes.exp &lt;- get_cell_type_expr(srna, high_pip_gene_symbol)</code></pre>
+<pre class="r"><code>high_pip_genes &lt;- finemap.res$gene[finemap.res$variant_id %in% peaks.eqtls$`CM Shared`$SNP]
+high_pip_genes &lt;- sub(&#39;[.].*&#39;, &#39;&#39;, high_pip_genes)
+high_pip_gene_symbol &lt;- ensembldb::select(EnsDb.Hsapiens.v86::EnsDb.Hsapiens.v86, keys= high_pip_genes, keytype = &quot;GENEID&quot;, columns = &quot;SYMBOL&quot;)
+high_pip_gene_symbol &lt;- high_pip_gene_symbol$SYMBOL</code></pre>
+<pre class="r"><code>CM.shared.egenes.exp &lt;- get_cell_type_expr(srna, high_pip_gene_symbol)</code></pre>
+<pre class="r"><code>CM.specific.egenes.exp &lt;- reshape2::melt(CM.specific.egenes.exp)
+CM.shared.egenes.exp &lt;- reshape2::melt(CM.shared.egenes.exp)
+CM.egenes.exp &lt;- rbind(CM.specific.egenes.exp, CM.shared.egenes.exp)
+CM.egenes.exp[,&quot;type&quot;] &lt;- c(rep(&quot;CM Specific eGenes&quot;, nrow(CM.specific.egenes.exp)), rep(&quot;CM Shared eGenes&quot;, nrow(CM.shared.egenes.exp)))</code></pre>
+<pre class="r"><code>ggplot(CM.egenes.exp, aes(x=Var2, y=value, fill=type)) + geom_boxplot() + ggClean(rotate_axis = T) + xlab(&quot;&quot;) + ylab(&quot;RNA Expression&quot;)</code></pre>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-67-1.png" width="672" /></p>
 </div>
 <div id="afib-gwas-enrichment" class="section level3">
 <h3>aFib GWAS Enrichment</h3>
@@ -514,7 +573,7 @@ enrich.df &lt;- enrich.df[enrich.df$term != &quot;non_CM_eQTLs&quot;,]
 enrich.df &lt;- enrich.df[enrich.df$term != &quot;non_CM_peaks&quot;,]
 
 ggplot(enrich.df, aes(y=term, x=estimate)) + geom_point(size=3, color=&#39;darkred&#39;) + geom_errorbar(aes(xmin=low, xmax=high), width=0)  + xlab(&#39;Log2 Enrichment&#39;) + ggtitle(&#39;aFib GWAS Enrichment&#39;) + geom_vline(xintercept = 0, color=&#39;red&#39;, linetype=&#39;dashed&#39;) + theme_bw() + theme(text = element_text(size=16)) + ylab(&#39;&#39;)</code></pre>
-<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-35-1.png" width="672" /></p>
+<p><img src="eqtl_enrichment_files/figure-html/unnamed-chunk-68-1.png" width="672" /></p>
 </div>
 
 

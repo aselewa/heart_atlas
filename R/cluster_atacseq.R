@@ -28,7 +28,7 @@ run_workflow <- function(project_path, batch_correct=NULL){
   projHeart <- saveArchRProject(projHeart, load = T)
 
   markers <- c("TNNT2","MYBPC3","MYH7","NPPA","RGS5","ABCC9","MYH11","TAGLN","DCN","PDGFRA","PECAM1","VWF","PLP1","CD8A","LCK","CD14","FOLR2")
-  p <- plotEmbedding(ArchRProj = projHeart, colorBy = "GeneScoreMatrix", name = markers,embedding = "UMAP")
+  p <- plotEmbedding(ArchRProj = projHeart, colorBy = "GeneScoreMatrix", name = markers,embedding = "UMAP", )
   plotPDF(plotList = p, name = "Plot-UMAP-Marker-Genes-W-Imputation.pdf", ArchRProj = projHeart, addDOC = FALSE, width = 5, height = 5)
   
   p <- custom_archr_umap(archr_project = projHeart, pt.size=0.3, alpha=0.7, label=F, legend = T)
@@ -95,3 +95,19 @@ projHeart$CellTypes <- RenameIdentity(idents = projHeart$Clusters, from = cluste
 p <- custom_archr_umap(archr_project = projHeart, group.by="CellTypes", palette = palette, pt.size=0.3, alpha=0.7, label=T, legend = T)
 ggsave(filename = "ArchR/ArchR_heart/Plots/umap-CellTypes.png", plot = p, dpi=150, width=8, height=6)
 saveArchRProject(projHeart)
+
+# better heatmap of gene activities
+markers <- c("TNNT2","RGS5","TAGLN","DCN","VWF","PLP1","CD8A","CD14")
+p <- plotEmbedding(ArchRProj = satac, colorBy = "GeneScoreMatrix", name = markers,embedding = "UMAP")
+
+plist <- list()
+z <- names(p)
+for(i in 1:length(z)){
+  plist[[i]] <- p[[i]] + ggClean() + 
+    LegendOff() + 
+    xlab("") + 
+    ylab("") + 
+    ggtitle(z[i]) + 
+    theme(text = element_text(size=12)) + scale_fill_gradientn(colours = c("lightblue","yellow","red"))
+}
+do.call("grid.arrange", plist)

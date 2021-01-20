@@ -70,8 +70,11 @@ getQCPlots <- function(archr_project){
 
 make_freq_plot <- function(freq, palette){
   type.freq <- data.frame(freq=as.numeric(freq), celltype=factor(names(freq)))
-  p <- ggplot(type.freq, aes(x=celltype, y=freq, fill=celltype)) + geom_bar(position = "dodge", stat="identity", color="black") + 
-    ggClean(rotate_axis = T) + scale_fill_manual(values = palette) + xlab("") + ylab("Prop. Cells")
+  p <- ggplot(type.freq, aes(x=freq, y=celltype, fill=celltype)) + geom_bar(position = "dodge", stat="identity", color="black") + 
+    ggClean(rotate_axis = T) + scale_fill_manual(values = palette) + xlab("Prop. Cells") + ylab("") +
+    theme(axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank())
 }
 
 RenameIdentity <- function(idents, from, to){
@@ -100,6 +103,14 @@ snpIDtoGR <- function(id){
   id.gr <- StringToGR(paste0(chr, ':',pos,'-',pos))
   
   return(id.gr)
+}
+
+removeOverlaps <- function(X, to.remove){
+  hits <- GenomicRanges::findOverlaps(query = X, subject = to.remove)
+  if(length(hits) > 0){
+    X <- X[-queryHits(hits),]
+  }
+  X
 }
 
 qOverlapS <- function(q, s, minPoverlap){
@@ -143,7 +154,7 @@ SNPGenomeDistrib <- function(snp.gr, genomic.annots) {
 join_overlap_list <- function(gr.list, X){
   res.list <- list()
   for(n in names(gr.list)){
-    res.list[[n]] <- plyranges::join_overlap_inner(gr.list[[n]], X)
+    res.list[[n]] <- plyranges::join_overlap_inner(X, gr.list[[n]])
   }
   return(res.list)
 }
@@ -235,5 +246,21 @@ peakToClusterBatch <- function(peak.mat, ideal.mat, chunk.size=1e5){
   }
   classify.mat <- Reduce(rbind, classify.mat.list)
   return(classify.mat)
+}
+
+create_torus_annotations <- function(snpmap, gr.list){
+  
+  celltypes <- names(gr.list)
+  for(c in celltypes){
+    overlap <- IRanges::subsetByOverlaps(snpmap, gr.list[[c]])
+    snpsIn <- unique(overlap$snp)
+    if(length(snpsIn) > 0){
+      annot <- snpmap@elementMetadata
+      n <- gsub(pattern = " ", replacement = "", c)
+      n <- gsub(pattern = "/", replacement = "", n)
+      annot[,paste0(n,'_d')] <- ifelse(annot$snp %in% snpsIn, 1, 0)
+      vroom::vroom_write(as_tibble(annot), path = paste0('eQTL_enrich/annotations/DA_peaks_',n,'_edgeR_peaks.txt.gz')) 
+    }
+  }
 }
 

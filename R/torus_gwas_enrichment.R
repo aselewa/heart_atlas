@@ -6,6 +6,8 @@ gwas <- RunCleaner(sumstats = 'GWAS/summary_statistics/',
                    bigSNP = bigSNP)
 saveRDS('GWAS/summary_statistics/nielsen-thorolfsdottir-willer-NG2018-AFib-gwas-summary-statistics.df.rds')
 
+library(finemappeR)
+
 gwas <- readRDS('GWAS/summary_statistics/nielsen-thorolfsdottir-willer-NG2018-AFib-gwas-summary-statistics.df.rds')
 
 annotations <- list.files(path = '../GWAS/annotations_hg19/', pattern = '*.bed', full.names = T)
