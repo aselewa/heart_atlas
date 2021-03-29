@@ -4,6 +4,14 @@ library(RColorBrewer)
 library(GenomicRanges)
 library(dplyr)
 
+get_density <- function(x, y, ...) {
+  dens <- MASS::kde2d(x, y, ...)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
+
 ggClean <- function(rotate_axis=FALSE){
   tm <- theme_bw() + 
     theme(text = element_text(size=18),
@@ -34,14 +42,21 @@ pullGeneScoreMatrix <- function(archr_project){
   return(gene.score.mat.norm)
 }
 
-custom_archr_umap <- function(archr_project, group.by="regions", alpha=1, pt.size=1, palette=NULL, legend=TRUE, label=FALSE){
+custom_archr_plot <- function(archr_project, reduction = 'UMAP', group.by="regions", alpha=1, pt.size=1, palette=NULL, legend=TRUE, label=FALSE){
   
   cellColData <- as.data.frame(archr_project@cellColData)
-  umap.df <- as.data.frame(archr_project@embeddings$UMAP$df)
-  colnames(umap.df) <- c("UMAP_1","UMAP_2")
   
-  umap.df[,"meta"] <- cellColData[,group.by, drop=T]
-  p <- ggplot(umap.df, aes(x=UMAP_1, y=UMAP_2, color=meta)) + geom_point(size=pt.size, alpha=alpha) + theme_set(theme_grey()) + ggClean()
+  if(reduction == 'UMAP'){
+    reduc.df <- as.data.frame(archr_project@embeddings$UMAP$df)
+  }
+  if(reduction == 'TSNE'){
+    reduc.df <- as.data.frame(archr_project@embeddings$TSNE$df)
+  }
+  colnames(reduc.df) <- c("x1","x2")
+  
+  reduc.df[,"meta"] <- cellColData[,group.by, drop=T]
+  p <- ggplot(reduc.df, aes(x=x1, y=x2, color=meta)) + ggrastr::rasterise(geom_point(size=pt.size, alpha=alpha), dpi = 200) + theme_set(theme_grey()) + ggClean() +
+    xlab(paste0(reduction,'1')) + ylab(paste0(reduction,'2'))
   
   if(!is.null(palette)){
     p <- p + scale_color_manual(values = palette)
@@ -52,12 +67,43 @@ custom_archr_umap <- function(archr_project, group.by="regions", alpha=1, pt.siz
   }
   
   if(label){
-    text.pos <- suppressMessages(umap.df %>% group_by(meta) %>% summarise(pos_x = mean(UMAP_1), pos_y = mean(UMAP_2)))
+    text.pos <- suppressMessages(reduc.df %>% group_by(meta) %>% summarise(pos_x = mean(x1), pos_y = mean(x2)))
     p <- p + ggrepel::geom_text_repel(data = text.pos, aes(x = pos_x, y = pos_y, label = meta), color="black")
   }
   
   return(p)
 }
+
+
+custom_dim_plot <- function(seurat, reduction = 'UMAP', group.by="cellTypes", alpha=1, pt.size=1, palette=NULL, legend=TRUE, label=FALSE){
+  
+  cellColData <- as.data.frame(seurat@meta.data)
+  
+  if(reduction == 'UMAP'){
+    reduc.df <- as.data.frame(seurat@reductions$umap@cell.embeddings)
+  }
+  colnames(reduc.df) <- c("x1","x2")
+  
+  reduc.df[,"meta"] <- cellColData[,group.by, drop=T]
+  p <- ggplot(reduc.df, aes(x=x1, y=x2, color=meta)) + ggrastr::rasterise(geom_point(size=pt.size, alpha=alpha), dpi = 200) + theme_set(theme_grey()) + ggClean() +
+    xlab(paste0(reduction,'1')) + ylab(paste0(reduction,'2'))
+  
+  if(!is.null(palette)){
+    p <- p + scale_color_manual(values = palette)
+  }
+  
+  if(!legend){
+    p <- p + LegendOff()
+  }
+  
+  if(label){
+    text.pos <- suppressMessages(reduc.df %>% group_by(meta) %>% summarise(pos_x = mean(x1), pos_y = mean(x2)))
+    p <- p + ggrepel::geom_text_repel(data = text.pos, aes(x = pos_x, y = pos_y, label = meta), color="black")
+  }
+  
+  return(p)
+}
+
 
 getQCPlots <- function(archr_project){
   cellColData <- as.data.frame(archr_project@cellColData)
@@ -68,14 +114,6 @@ getQCPlots <- function(archr_project){
   p <- p1 + p2 + p3 + p4 + plot_layout(nrow=1)
 }
 
-make_freq_plot <- function(freq, palette){
-  type.freq <- data.frame(freq=as.numeric(freq), celltype=factor(names(freq)))
-  p <- ggplot(type.freq, aes(x=freq, y=celltype, fill=celltype)) + geom_bar(position = "dodge", stat="identity", color="black") + 
-    ggClean(rotate_axis = T) + scale_fill_manual(values = palette) + xlab("Prop. Cells") + ylab("") +
-    theme(axis.title.y=element_blank(),
-          axis.text.y=element_blank(),
-          axis.ticks.y=element_blank())
-}
 
 RenameIdentity <- function(idents, from, to){
   new.idents <- plyr::mapvalues(idents, from = from, to = to)
@@ -113,16 +151,14 @@ removeOverlaps <- function(X, to.remove){
   X
 }
 
-qOverlapS <- function(q, s, minPoverlap){
+subsetByOverlapProp <- function(q, s, minPoverlap){
   
   hits <- GenomicRanges::findOverlaps(query = q, subject = s)
   overlaps <- pintersect(q[queryHits(hits)], s[subjectHits(hits)])
   percentOverlap <- width(overlaps) / width(q[queryHits(hits)])
-  hits <- hits[percentOverlap > minPoverlap]
+  hits <- hits[percentOverlap >= minPoverlap]
   
-  inQuery <- q[queryHits(hits)]
-  propIn <- length(unique(GRToString(inQuery)))/length(q)
-  return(propIn)
+  return(hits)
 }
 
 SNPGenomeDistrib <- function(snp.gr, genomic.annots) {
@@ -159,108 +195,27 @@ join_overlap_list <- function(gr.list, X){
   return(res.list)
 }
 
-getSharingMat <- function(gr.list){
-  l <- length(gr.list)
-  m <- matrix(0, nrow=l, ncol=l)
-  for(i in 1:l){
-    curr_sum <- 0
-    for(j in 1:l){
-      m[i,j] <- qOverlapS(q = gr.list[[i]], s = gr.list[[j]], 0.5)
+
+get_elements_overlap_snps <- function(snp.gr, annotations) {
+    for (f in annotations) {
+        name <- paste0(basename(f), "_d")
+        curr <- rtracklayer::import(f, format = "bed")
+        curr <- GenomicRanges::reduce(curr)
+        overlap.df <- plyranges::join_overlap_inner(curr, snp.gr) %>% 
+            as_tibble() %>% mutate(enhancer = paste0('chr',seqnames, ':', start, '-', end)) %>% 
+            dplyr::select(snp, enhancer)
+        colnames(overlap.df) <- c("snp", sub('.bed','',basename(annotations)))
     }
-  }
-  m
+    return(overlap.df)
 }
 
-generateBits <- function(n){
-  max_n <- 2^n - 1
-  bitList <- list()
-  for(i in 1:max_n){
-    bitList[[i]] <- as.integer(intToBits(i)[1:n])
-  }
-  return(bitList)
-}
-
-getIdealAccess <- function(cell_type_vec){
-  
-  cellTypes <- unique(cell_type_vec)
-  nCellTypes <- length(cellTypes)
-  profiles <- generateBits(nCellTypes)
-  nProfiles <- length(profiles)
-  
-  ideal.mat <- matrix(0, nrow = nProfiles, ncol = length(cell_type_vec))
-
-  for(i in 1:nProfiles){
-    curr.profile <- profiles[[i]]
-    if(sum(curr.profile) >= 3)
-    toInclude <- which(curr.profile == 1)
-    cellTypesIn <- cellTypes[toInclude]
-    for(type in cellTypesIn){
-      ideal.mat[i,] <- ideal.mat[i,] + 1*(cell_type_vec==type)
+get_snp_to_gene_dist <- function(snp.gr, gene.gr, genes=NULL){
+    
+    if(!is.null(genes)){
+        gene.gr <- gene.gr[gene.gr$gene_name %in% genes,]
+        
     }
-  }
-  return(ideal.mat)
-  
+    
 }
 
-multi.jaccard.index <- function(X, y){
-  stopifnot(is.matrix(X))
-  stopifnot(dim(X)[1] == length(y))
-  intsct <- X * y
-  yunion <- X | y
-  colSums(intsct) / colSums(yunion)
-}
-
-peakToCluster <- function(peak.mat, ideal.mat){
-  
-  classify.mat <- matrix(0, nrow = nrow(peak.mat), ncol = nrow(ideal.mat))
-  ideal.mat.t <- t(ideal.mat)
-  
-  for(i in 1:nrow(peak.mat)){
-    if(i %% 1000 == 0){
-      print(i)
-    }
-    x <- peak.mat[i,,drop=T]
-    dists <- multi.jaccard.index(ideal.mat.t, x)
-    classify.mat[i,] <- dists
-  }
-  return(classify.mat)
-}
-
-
-peakToClusterBatch <- function(peak.mat, ideal.mat, chunk.size=1e5){
-  N <- nrow(peak.mat)
-  k <- floor(N/1e5)
-  classify.mat.list <- list()
-  for(i in 1:k){
-    print(paste0('Getting batch ',i,'...'))
-    curr.mat <- as.matrix(peak.mat[(1+(i-1)*chunk.size):(chunk.size*i),])
-    classify.mat.list[[i]] <- peakToCluster(peak.mat = curr.mat, ideal.mat = ideal.mat)
-    rm(curr.mat)
-    gc()
-  }
-  if((k*chunk.size) < N){
-    curr.mat <- as.matrix(peak.mat[(1+k*chunk.size):N,])
-    classify.mat.list[[i+1]] <- peakToCluster(peak.mat = curr.mat, ideal.mat = ideal.mat)
-    rm(curr.mat)
-    gc()
-  }
-  classify.mat <- Reduce(rbind, classify.mat.list)
-  return(classify.mat)
-}
-
-create_torus_annotations <- function(snpmap, gr.list){
-  
-  celltypes <- names(gr.list)
-  for(c in celltypes){
-    overlap <- IRanges::subsetByOverlaps(snpmap, gr.list[[c]])
-    snpsIn <- unique(overlap$snp)
-    if(length(snpsIn) > 0){
-      annot <- snpmap@elementMetadata
-      n <- gsub(pattern = " ", replacement = "", c)
-      n <- gsub(pattern = "/", replacement = "", n)
-      annot[,paste0(n,'_d')] <- ifelse(annot$snp %in% snpsIn, 1, 0)
-      vroom::vroom_write(as_tibble(annot), path = paste0('eQTL_enrich/annotations/DA_peaks_',n,'_edgeR_peaks.txt.gz')) 
-    }
-  }
-}
 

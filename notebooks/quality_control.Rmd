@@ -24,15 +24,6 @@ get_density <- function(x, y, ...) {
 }
 ```
 
-```{r}
-get_density <- function(x, y, ...) {
-  dens <- MASS::kde2d(x, y, ...)
-  ix <- findInterval(x, dens$x)
-  iy <- findInterval(y, dens$y)
-  ii <- cbind(ix, iy)
-  return(dens$z[ii])
-}
-```
 
 ### scRNA-seq
 
@@ -87,22 +78,29 @@ do.call(grid.arrange, plist)
 ```
 
 
-### scATAC-seq
-
-```{r}
-d22 <- loadArchRProject('../ArchR/ArchR_project_02207/', showLogo = F)
-d23 <- loadArchRProject('../ArchR/ArchR_project_02336/', showLogo = F)
-d32 <- loadArchRProject('../ArchR/ArchR_project_03231/', showLogo = F)
-```
-
 #### Library size distribution
 
 ```{r}
-comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_2/', showLogo = F))
+comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_raw/', showLogo = F))
 ```
 
 ```{r}
-ATAC_SAMPLES <- c("MW200804AA","MW200804AB","MW200804AC","MW200804AD","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC","SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","SP-HE-HE200915ATAC-360ATAC","SP-HE-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC","SP-HE-MW200928E2ATAC-175ATAC","SP-HE-MW200928E2ATAC-366ATAC","SP-HE-MW200928E2ATAC-367ATAC","SP-HE-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC")
+stats.df <- data.frame(nfrag=log2(comb$nFrags), donor=comb$individual, region=comb$regions)
+ggplot(stats.df, aes(x = region, y = nfrag, fill=donor)) + geom_boxplot() + ggClean(rotate_axis = T) + ylab("Fragments") + xlab("")
+```
+
+```{r}
+stats.df <- data.frame(nfrag=comb$nFrags, donor=comb$individual, region=comb$regions) %>% group_by(region, donor) %>% summarise(ncell=n())
+ggplot(stats.df, aes(x = region, y = ncell, fill=donor)) + geom_bar(stat="identity") + ggClean(rotate_axis = T) + ylab("Cells") + xlab("")
+```
+
+
+
+```{r}
+ATAC_SAMPLES <- c("MW200804AA","MW200804AB","Deep_MW200804AC","Deep_MW200804AD","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC",
+                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","Deep_SP-HE200915ATAC-360ATAC","Deep_SP-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC",
+                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-HE-MW200928E2ATAC-366ATAC","Deep_SP-MW200928E2ATAC-367ATAC","Deep_SP-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC")
+
 ATAC_INDIVIDUALS <- c(rep("black",6),rep("blue",6),rep("red",6))
 
 curr_x <- sort(log2(comb$nFrags[comb$Sample==ATAC_SAMPLES[1]]))
@@ -152,34 +150,4 @@ do.call("grid.arrange",plist)
 ```
 
 
-#### Fragment size distribution
-
-This plot tells us the fragment size distribution. A good ATAC-seq library will have two peaks: one around ~50 bp representing the pitch of DNA and one around ~150 representing actual open chromatin peaks. 
-
-```{r}
-n_down_sample <- 10^6
-
-d22.sizes <- readRDS('../ArchR_project_02207/fragment_sizes.rds')
-d22.sizes <- d22.sizes[sample(1:length(d22.sizes), n_down_sample, replace=F)]
-
-d23.sizes <- readRDS('../ArchR_project_02336/fragment_sizes.rds')
-d23.sizes <- d23.sizes[sample(1:length(d23.sizes), n_down_sample, replace=F)]
-
-d32.sizes <- readRDS('../ArchR_project_03231/fragment_sizes.rds')
-d32.sizes <- d32.sizes[sample(1:length(d32.sizes), n_down_sample, replace=F)]
-
-```
-
-```{r}
-size.df <- data.frame(sizes=c(d22.sizes, d23.sizes, d32.sizes), Donor=c(rep("02207",length(d22.sizes)), rep("02336",length(d23.sizes)), rep("03231", length(d32.sizes))))
-size.df <- size.df[size.df$sizes < 1000, ]
-```
-
-```{r}
-ggplot(size.df) + stat_density(aes(x=sizes, color=Donor), geom="line", position="identity", size=1.5) + ggClean() + 
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  xlab('Fragment Size')
-```
 

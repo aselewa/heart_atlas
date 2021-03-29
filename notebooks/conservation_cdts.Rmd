@@ -1,0 +1,136 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source('../R/analysis_utils.R')
+library(GenomicRanges)
+```
+
+### noncoding CDTS scores
+
+Genome-wide context-dependent tolerance scores (CDTS) were obtained from http://www.hli-opendata.com/noncoding/.
+
+```{r}
+cdts <- suppressMessages(vroom::vroom('../noncoding_CDTS/coord_CDTS_percentile_N11257all.txt.gz'))
+```
+
+```{r}
+cdts.gr <- GRanges(seqnames = cdts$chromosome, ranges = IRanges(start = cdts$start, end = cdts$end))
+cdts.gr$CDTS <- cdts$CDTS
+cdts.gr$percentile <- cdts$percentile
+```
+
+```{r}
+cdts.gr <- cdts.gr + 275
+```
+
+### Load ATAC-seq annotations
+
+```{r}
+satac <- suppressMessages(ArchR::loadArchRProject('../ArchR/ArchR_heart_2/'))
+union.set <- ArchR::getPeakSet(satac)
+union.exons <- union.set[union.set$peakType == "Exonic", ]
+
+cmCalls <- union.set[names(union.set) == "Cardiomyocyte",]
+markers <- readRDS('../ArchR/ArchR_heart_2/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+cm.specific <- markers$Cardiomyocyte
+cm.shared <- removeOverlaps(X = cmCalls, to.remove = cm.specific)
+```
+
+
+### Peak CDTS scoring
+
+```{r}
+compute_CDTS <- function(peaks.gr, cdts.gr){
+ 
+  res <- findOverlaps(query = peaks.gr, subject = cdts.gr)
+  widths <- width(pintersect(peaks.gr[queryHits(res),], cdts.gr[subjectHits(res),]))
+  pOverlap <- widths/width(peaks.gr[queryHits(res),])
+  
+  peaks.cdts.df <- data.frame(peak.index = queryHits(res), 
+                              cdts.index = subjectHits(res), 
+                              pOverlap = pOverlap,
+                              score = cdts.gr[subjectHits(res),]$CDTS,
+                              percentile = cdts.gr[subjectHits(res),]$percentile)
+  
+  peaks.cdts.df.dedup <- peaks.cdts.df %>% group_by(peak.index) %>% arrange(desc(pOverlap)) %>% slice(1) 
+  
+  peaks.cdts.df.dedup
+}
+```
+
+```{r}
+cm.specific.cdts <- compute_CDTS(peaks.gr = cm.specific, cdts.gr = cdts.gr)
+cm.shared.cdts <- compute_CDTS(peaks.gr = cm.shared, cdts.gr = cdts.gr)
+```
+
+```{r}
+ranges <- union.set@ranges
+chrs <- as.character(union.set@seqnames)
+chrs <- chrs[sample(1:length(chrs), size = length(chrs), replace = F)]
+ranges <- ranges[sample(1:length(ranges), size = length(ranges), replace = F),]
+random.gr <- GRanges(seqnames = chrs, ranges = ranges)
+
+rand.cdts <- compute_CDTS(peaks.gr = random.gr, cdts.gr = cdts.gr)
+```
+
+
+```{r}
+xranges <- seq(-30, 20, 1)
+cm.specific.cdts.ecdf <- sapply(xranges, function(x){mean(cm.specific.cdts$score < x)})
+cm.shared.cdts.ecdf <- sapply(xranges, function(x){mean(cm.shared.cdts$score < x)})
+rand.cdts.ecdf <- sapply(xranges, function(x){mean(rand.cdts$score < x)})
+```
+
+```{r}
+plot(xranges, cm.specific.cdts.ecdf, type='l', ylab='CDF', xlab='CDTS (mutation tolerance score)')
+lines(xranges, cm.shared.cdts.ecdf, col='red')
+lines(xranges, rand.cdts.ecdf, col='blue')
+
+legend(x = -20, y=0.8, c("CM Specific","CM Shared","Random"),c("black","red","blue"))
+```
+
+```{r}
+res <- findOverlaps(query = cm.specific, subject = union.set)
+cm.specific.peaktypes <- table(union.set[subjectHits(res),]$peakType)
+
+res <- findOverlaps(query = cm.shared, subject = union.set)
+cm.shared.peaktypes <- table(union.set[subjectHits(res),]$peakType)
+```
+
+```{r}
+peaktypes.df <- data.frame(peak.freq = c(cm.shared.peaktypes/sum(cm.shared.peaktypes), cm.specific.peaktypes/sum(cm.specific.peaktypes)), 
+                           type = rep(names(cm.specific.peaktypes), 2),
+                           origin = rep(c("CM Shared","CM Specific"), each=4)) 
+
+ggplot(peaktypes.df, aes(x = origin, y = peak.freq, fill = type)) + geom_bar(stat="identity") + ggClean() + xlab("") + ylab("Proportion of Peaks")
+```
+
+Test if promoters do indeed lower tolerance of mutations
+
+```{r}
+
+res <- findOverlaps(query = cm.shared, subject = union.set)
+cm.shared <- union.set[subjectHits(res),]
+cm.shared <- cm.shared[cm.shared$peakType != "Promoter",]
+cm.shared.cdts <- compute_CDTS(peaks.gr = cm.shared, cdts.gr = cdts.gr)
+
+```
+
+```{r}
+xranges <- seq(-30, 20, 1)
+cm.specific.cdts.ecdf <- sapply(xranges, function(x){mean(cm.specific.cdts$score < x)})
+cm.shared.cdts.ecdf <- sapply(xranges, function(x){mean(cm.shared.cdts$score < x)})
+rand.cdts.ecdf <- sapply(xranges, function(x){mean(rand.cdts$score < x)})
+```
+
+```{r}
+plot(xranges, cm.specific.cdts.ecdf, type='l', ylab='CDF', xlab='CDTS (mutation tolerance score)')
+lines(xranges, cm.shared.cdts.ecdf, col='red')
+lines(xranges, rand.cdts.ecdf, col='blue')
+
+legend(x = -20, y=0.8, c("CM Specific","CM Shared","Random"),c("black","red","blue"))
+```

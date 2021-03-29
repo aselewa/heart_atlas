@@ -1,0 +1,151 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(ArchR))
+suppressMessages(library(Seurat))
+suppressMessages(library(tidyverse))
+suppressMessages(require(plyranges))
+suppressMessages(source('../R/analysis_utils.R'))
+```
+
+```{r}
+
+srna <- readRDS('../seurat/Heart_RNA_Processed_Combined_NoAtrium.rds')
+satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_latest_noAtrium/'))
+
+peaks <- getPeakSet(satac)
+markers <- readRDS('../seurat/diff_expr_markers.df.rds')
+markers <- markers[markers$avg_logFC > 0, ]
+genomic.annots <- readRDS('../hg38_genomic_annotations.gr.rds')
+
+```
+
+```{r}
+cell.type.access <- getGroupSE(ArchRProj = satac, useMatrix = "GeneScoreMatrix", groupBy = "CellTypes", divideN = T, scaleTo = 10000)
+cell.type.access.mat <- log(1 + cell.type.access@assays@data$GeneScoreMatrix)
+rownames(cell.type.access.mat) <- rowData(cell.type.access)$name
+```
+
+```{r}
+cell.type.exp <- AverageExpression(object = srna, slot = 'data', verbose = F) # exponentiates and returns data in non-logged space
+cell.type.exp.mat <- log(1 + cell.type.exp$RNA)
+```
+
+```{r}
+diff.genes <- unique(markers$gene)
+same.feats <- intersect(intersect(rownames(cell.type.exp.mat), rownames(cell.type.access.mat)), diff.genes)
+cell.type.exp.mat <- cell.type.exp.mat[same.feats,]
+cell.type.access.mat <- cell.type.access.mat[same.feats,]
+
+cell.type.exp.mat <- cell.type.exp.mat[ , colnames(cell.type.access.mat)]
+```
+
+```{r}
+cor_res <- cor(cell.type.exp.mat, cell.type.access.mat)
+p <- ComplexHeatmap::Heatmap(cor_res, cluster_rows = F, cluster_columns = F, col = circlize::colorRamp2(c(0, 0.2, 0.8), c("lightblue","white","firebrick")), name = "Pearson \nCorrelation", row_title = "snATAC-seq", column_title = "snRNA-seq")
+```
+
+
+How many peaks per gene?
+
+```{r}
+all.genes.gr <- genomic.annots$genes
+all.genes.gr <- all.genes.gr[all.genes.gr$gene_name %in% rownames(cell.type.exp$RNA), ]
+cutoff <- c(100, 1000, 5000, 10000, 50000, 100000)
+mean_peaks <- rep(0, length(cutoff))
+for(i in 1:length(cutoff)){
+  curr <- plyranges::join_overlap_inner(x = all.genes.gr, y = peaks, maxgap = cutoff[i]) %>% 
+    as_tibble() %>% 
+    group_by(gene_name) %>% 
+    summarise(nPeaks = n())
+  mean_peaks[i] <- median(curr$nPeaks)
+}
+
+```
+
+```{r}
+plot(log10(cutoff), mean_peaks, xlab="log10 Distance Cutoff", ylab = 'Median Peaks', pch=16)
+```
+
+
+```{r}
+all.genes.gr <- genomic.annots$genes
+all.genes.gr <- all.genes.gr[all.genes.gr$gene_name %in% rownames(cell.type.exp$RNA), ]
+peaks.per.gene <- plyranges::join_overlap_inner(x = all.genes.gr, y = peaks, maxgap = 10000) %>% 
+  as_tibble() %>% 
+  group_by(gene_name) %>% 
+  summarise(nPeaks = n(), meanPeakStrength = median(score)) %>%
+  filter(nPeaks < 1000) %>%
+  rename(gene = gene_name)
+```
+
+Summary of number of peaks. Clearly there are some outliers.
+
+```{r}
+summary(peaks.per.gene$nPeaks)
+```
+
+```{r}
+markers.npeaks <- left_join(x = markers, y = peaks.per.gene, on = "gene") %>% filter(!is.na(nPeaks)) %>% as_tibble()
+```
+
+We can look at the summary of the CM specific genes and their number of peaks.
+
+```{r}
+summary(markers.npeaks$nPeaks)
+```
+
+Distribution seems a little higher than all genes.
+
+```{r}
+cell.type.exp.mat <- cell.type.exp$RNA
+gene.means <- rowMeans(cell.type.exp.mat[peaks.per.gene$gene,], na.rm = T)
+high.genes <- names(gene.means)[gene.means > 2]
+low.genes <- names(gene.means[gene.means < 0.01])
+
+random.high.peaks <- peaks.per.gene[peaks.per.gene$gene %in% high.genes,]
+random.low.peaks <- peaks.per.gene[peaks.per.gene$gene %in% low.genes,]
+
+random.high.peaks$cluster <- 'Random High'
+random.low.peaks$cluster <- 'Random Low'
+
+random.high.peaks$type <- 'Random High'
+random.low.peaks$type <- 'Random low'
+markers.npeaks$type <- 'Cell Type Specific'
+
+markers.npeaks.all <- bind_rows(markers.npeaks, bind_rows(random.high.peaks,random.low.peaks))
+
+markers.npeaks.all$cluster <- factor(markers.npeaks.all$cluster, levels = c("Random High","Random Low",levels(markers$cluster)))
+```
+
+```{r}
+ggplot(markers.npeaks.all, aes(x = cluster, y = log2(nPeaks), fill = type)) + 
+  geom_boxplot() + 
+  ggClean(rotate_axis = T) + 
+  LegendOff() + 
+  scale_fill_manual(values = c("red","blue","purple")) +
+  xlab('Gene Categories') +
+  ylab('log2(Peaks) (within 10kb)')
+```
+
+```{r}
+cell.type.exp.mat <- log(1 + cell.type.exp$RNA)
+
+mean.exp.mat <- data.frame(mean_exp = rowMeans(cell.type.exp.mat), gene = rownames(cell.type.exp.mat))
+exp.npeaks.mat <- left_join(mean.exp.mat, peaks.per.gene, on="gene") %>% filter(!is.na(nPeaks))
+```
+
+```{r}
+exp.npeaks.mat$nPeaks <- log2(exp.npeaks.mat$nPeaks)
+fit <- lm(exp.npeaks.mat$nPeaks ~ exp.npeaks.mat$mean_exp)
+exp.npeaks.mat$fit <- fit$fitted.values
+exp.npeaks.mat$density <- get_density(x = exp.npeaks.mat$mean_exp, y = exp.npeaks.mat$nPeaks, n = 100)
+
+ggplot(exp.npeaks.mat, aes(x = mean_exp, y = nPeaks, color = density)) + geom_point() + geom_line(aes(y=fit), color = 'red') +  scale_color_gradientn(colours = c("lightblue","yellow","red")) + ggClean() + xlab('log2 Expression') + ylab("log2 nPeaks")
+```
+
+

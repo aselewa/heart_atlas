@@ -1,36 +1,105 @@
-# load protein coding annotations
-genomic.annots <- rtracklayer::import('/project2/xinhe/alan/hg38_annotations/gencode.v29.annotation.gtf.gz', format = 'gtf')
-genomic.annots <- genomic.annots[genomic.annots$source=="HAVANA",]
-genomic.annots <- genomic.annots[genomic.annots$gene_type=="protein_coding",]
+library(GenomicFeatures)
+library(GenomicRanges)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(org.Hs.eg.db)
+source('R/analysis_utils.R')
 
-gene.annots <- genomic.annots[genomic.annots$type=="gene",]
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+seqlevels(txdb) <- c(paste0("chr",1:22),"chrX")
 
-# select canonical transcript per gene
-exon.annots <- genomic.annots[genomic.annots$type=="exon",]
-exon.annots$widths <- GenomicRanges::width(exon.annots)
-gene.trans.size <- as.data.frame(exon.annots@elementMetadata) %>% group_by(gene_id, transcript_id) %>% summarise(size=sum(widths)) 
-largest.trans.id <- gene.trans.size %>% group_by(gene_id) %>% arrange(-size) %>% slice(1) %>% pull(transcript_id)
-genomic.annots <- genomic.annots[genomic.annots$transcript_id %in% largest.trans.id, ]
+entrez.to.symb <- function(IDs, db){
+  AnnotationDbi::select(x = db, 
+         keys = as.character(IDs), 
+         columns = c("ENTREZID","SYMBOL"), 
+         keytype = "ENTREZID")$SYMBOL
+}
 
-exon.annots <- genomic.annots[genomic.annots$type=="exon",]
-utr.annots <- genomic.annots[genomic.annots$type=="UTR",]
+Tx.to.GeneID <- function(IDs, db){
+  AnnotationDbi::select(x = db, 
+         keys = as.character(IDs), 
+         columns = "GENEID", 
+         keytype = "TXID")$GENEID
+}
 
-# get intronic annotations
-intron.annots <- GenomicRanges::setdiff(gene.annots, exon.annots)
-intron.annots$type <- "intron"
+add.tx.length <- function(IDs, db){
+  res <- AnnotationDbi::select(x = db, 
+         keys = as.character(IDs), 
+         columns = c("TXSTART","TXEND"), 
+         keytype = "TXID")
+  res$TXEND - res$TXSTART
+}
 
-# get promoter annotations
-promoter.annots <- gene.annots
-start(promoter.annots[strand(promoter.annots)=="+",]) <- start(promoter.annots[strand(promoter.annots)=="+",]) - 5000
-end(promoter.annots[strand(promoter.annots)=="+",]) <- start(promoter.annots[strand(promoter.annots)=="+",]) + 1000
-end(promoter.annots[strand(promoter.annots)=="-",]) <- end(promoter.annots[strand(promoter.annots)=="-",]) + 5000
-start(promoter.annots[strand(promoter.annots)=="-",]) <- end(promoter.annots[strand(promoter.annots)=="-",]) - 1000
-promoter.annots$type <- "promoter"
+unlist_expand_ids <- function(gr){
+  ids <- names(gr)
+  expand.ids <- rep(ids, lengths(gr))
+  gr <- unlist(gr)
+  gr$tx_id <- expand.ids
+  gr
+}
 
-# get exons without UTR annotations
-exon.annots <- GenomicRanges::setdiff(exon.annots, utr.annots)
-exon.annots$type <- "exon"
 
-disjoint.annots <- GenomicRanges::bindROWS(exon.annots, list(utr.annots, intron.annots, promoter.annots))
-disjoint.annots <- disjoint.annots[,"type"]
-saveRDS(disjoint.annots, file = '../eQTL_enrich/annotations/hg38_disjoint_annotations.gr.rds')
+annots <- list()
+
+#genes
+my.genes <- genes(txdb)
+my.genes$gene_name <- entrez.to.symb(my.genes$gene_id, org.Hs.eg.db)
+
+# get canonical transcript per gene
+all.tx.ids <- AnnotationDbi::select(txdb, keys=my.genes$gene_id, columns=c("GENEID","TXID","TXSTART","TXEND"), keytype = "GENEID")
+all.tx.ids$width <- all.tx.ids$TXEND - all.tx.ids$TXSTART
+canonical_tx <- (all.tx.ids %>% group_by(GENEID) %>% summarise(canonical_txid = TXID[which.max(width)]))$canonical_txid
+
+#exons
+my.exons <- exonsBy(txdb, by = "tx")
+my.exons <- unlist_expand_ids(my.exons)
+my.exons <- my.exons[my.exons$tx_id %in% canonical_tx,]
+my.exons$gene_id <- Tx.to.GeneID(my.exons$tx_id, db = txdb)
+my.exons$gene_name <- entrez.to.symb(IDs = my.exons$gene_id, db = org.Hs.eg.db)
+
+#promoters
+my.promoters <- promoters(txdb, upstream = 2000, downstream = 0)
+my.promoters <- my.promoters[my.promoters$tx_id %in% canonical_tx,]
+my.promoters$gene_id <- AnnotationDbi::select(x = txdb, keys = as.character(my.promoters$tx_id), columns = "GENEID", keytype = "TXID")$GENEID
+my.promoters$gene_name <- entrez.to.symb(my.promoters$gene_id, org.Hs.eg.db)
+
+#introns (no need to annotate, we will grab nearest genes)
+my.introns <- unlist_expand_ids(intronsByTranscript(txdb))
+my.introns <- my.introns[my.introns$tx_id %in% canonical_tx,]
+my.introns$gene_id <- Tx.to.GeneID(my.introns$tx_id, db = txdb)
+my.introns$gene_name <- entrez.to.symb(IDs = my.introns$gene_id, db = org.Hs.eg.db)
+
+# 5' UTRs
+my.fiveUTRs <- unlist_expand_ids(fiveUTRsByTranscript(txdb))
+my.fiveUTRs <- my.fiveUTRs[my.fiveUTRs$tx_id %in% canonical_tx,]
+my.fiveUTRs$gene_id <- Tx.to.GeneID(my.fiveUTRs$tx_id, db = txdb)
+my.fiveUTRs$gene_name <- entrez.to.symb(IDs = my.fiveUTRs$gene_id, db = org.Hs.eg.db)
+
+# 3' UTRs
+my.threeUTRs <- unlist_expand_ids(threeUTRsByTranscript(txdb))
+my.threeUTRs <- my.threeUTRs[my.threeUTRs$tx_id %in% canonical_tx,]
+my.threeUTRs$gene_id <- Tx.to.GeneID(my.threeUTRs$tx_id, db = txdb)
+my.threeUTRs$gene_name <- entrez.to.symb(IDs = my.threeUTRs$gene_id, db = org.Hs.eg.db)
+
+# add splice junctions
+intron.chr <- c(as.character(seqnames(my.introns)), as.character(seqnames(my.introns)))
+intron.pos <- c(start(my.introns), end(my.introns))
+intron.gene.name <- c(my.introns$gene_name, my.introns$gene_name)
+my.splice.junc <- GRanges(seqnames = intron.chr, ranges = IRanges(start = intron.pos-100, end = intron.pos+100))
+my.splice.junc$gene_name <- intron.gene.name
+
+annots <- list(exons = my.exons, 
+               genes = my.genes,
+               introns = my.introns,
+               threeUTRs = my.threeUTRs,
+               fiveUTRs = my.fiveUTRs,
+               promoters = my.promoters,
+               splice.junction = my.splice.junc)
+
+# exons shouldnt contain UTRs
+annots$exons <- removeOverlaps(X = annots$exons, to.remove = annots$threeUTRs)
+annots$exons <- removeOverlaps(X = annots$exons, to.remove = annots$fiveUTRs)
+
+
+saveRDS(annots, 'hg38_genomic_annotations.gr.rds')
+
+

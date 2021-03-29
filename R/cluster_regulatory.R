@@ -13,9 +13,9 @@ K=9
 kmeans.res <- kmeans(type.mat.norm, centers = K)
 labs <- kmeans.res$cluster
 
-ideal_order <- c("Vent. CM","Vent. CM2","Fibroblast", "Pericyte", "Neuronal", "Myeloid","Endothelial", "Lymphoid", "All")
+ideal_order <- c("Cardiomyocyte","Fibroblast", "Pericyte", "Neuronal", "Myeloid","Endothelial", "Lymphoid", "All")
 lab_map <- data.frame(num = 1:K,
-                      celltype = c("Vent. CM", "Fibroblast", "Myeloid", "Endothelial", "All", "Lymphoid", "Vent. CM2", "Neuronal", "Pericyte"),
+                      celltype = c("Cardiomyocyte", "Fibroblast", "Myeloid", "Endothelial", "All", "Lymphoid", "Neuronal", "Pericyte"),
                       stringsAsFactors = F)
 
 labs.named <- plyr::mapvalues(x = labs, from = lab_map$num, to = lab_map$celltype)

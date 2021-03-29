@@ -11,38 +11,13 @@ if(length(args) > 0){
 }
 
 # GLOBAL PARAMETERS
-ATAC_SAMPLES <- c("MW200804AA","MW200804AB","MW200804AC","MW200804AD","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC",
-                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","SP-HE-HE200915ATAC-360ATAC","SP-HE-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC",
-                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-HE-MW200928E2ATAC-366ATAC","SP-HE-MW200928E2ATAC-367ATAC","SP-HE-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC")
+ATAC_SAMPLES <- c("MW200804AA","Deep_MW200804AC","Deep_MW200804AD","SP-HE-MW200928E1ATAC-413ATAC",
+                 "SP-HE-HE200915ATAC-175ATAC","Deep_SP-HE200915ATAC-360ATAC","Deep_SP-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-398ATAC",
+                 "SP-HE-MW200928E2ATAC-175ATAC","Deep_SP-MW200928E2ATAC-367ATAC","Deep_SP-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-408ATAC")
 
-ATAC_INDIVIDUALS <- c(rep("02207",6),rep("02336",6),rep("03231",6))
+ATAC_INDIVIDUALS <- c(rep("02207",4),rep("02336",4),rep("03231",4))
 
-ATAC_REGIONS <- rep(c("Septum","Right Atrium","Right Ventricle","Left Ventricle","Left Atrium","Apex"), 3)
-
-getFragmentSizes <- function(achr_project){
-  project_arrows <- getArrowFiles(achr_project)
-  gr.list <- sapply(project_arrows, function(x){getFragmentsFromArrow(x)}) 
-  sizes <-  sapply(gr.list, function(x){end(x)-start(x)})
-  sizes <- unlist(sizes, use.names = FALSE)
-  return(sizes)
-}
-
-make_meta_df <- function(){
-  sat <- c()
-  ncells <- c()
-  for(s in ATAC_SAMPLES){
-    curr.summary <- paste0(ATAC_DIR,s,'/outs/summary.json')
-    meta <- fromJSON(txt = curr.summary)
-    curr_sat <-  100*meta$bulk_estimated_saturation
-    if(length(curr_sat)==0){
-      curr_sat <- NA
-    }
-    sat <- c(sat, curr_sat)
-    ncells <- c(ncells, meta$cells_detected)
-  }
-  meta.df <- data.frame(saturation=sat, ncells=ncells, sample=ATAC_SAMPLES, individual=ATAC_INDIVIDUALS, regions=ATAC_REGIONS)
-  saveRDS(object = meta.df, file = 'ATAC_metadata_df.rds')
-}
+ATAC_REGIONS <- rep(c("Septum","Right Ventricle","Left Ventricle","Apex"), 3)
 
 make_ATAC_arrows <- function(){
 
@@ -51,26 +26,25 @@ make_ATAC_arrows <- function(){
 
   addArchRThreads(threads = 5)
   addArchRGenome("hg38")
-  system('mkdir ArchR_ArrowFiles')
+  system('mkdir ArchR_ArrowFiles_5kmin_6TSSmin')
   
-  setwd('ArchR_ArrowFiles/')
+  setwd('ArchR_ArrowFiles_5kmin_6TSSmin/')
   ArrowFiles <- createArrowFiles(
     inputFiles = inputFiles,
     sampleNames = names(inputFiles),
     filterTSS = 6,
-    filterFrags = 3000
+    filterFrags = 5000
   )
   
   arrows <- list.files(path = '.', pattern = '*.arrow', full.names = F)
-  x <- addDoubletScores(input = arrows)
+  x <- addDoubletScores(input = arrows, k = 5)
   
   setwd('../')
   
 }
 
 main <- function() {
-  
-  make_meta_df()
+
   make_ATAC_arrows()
   
   individuals <- unique(ATAC_INDIVIDUALS)
@@ -97,13 +71,5 @@ main <- function() {
 if(length(args)>0){
   main()
 }
-
-projHeart <- ArchRProject(
-  ArrowFiles = list.files(path = 'ArchR/ArchR_ArrowFiles/', pattern = '*.arrow', full.names = T),
-  outputDirectory = 'ArchR/ArchR_heart',
-  copyArrows = TRUE
-)
-projHeart$regions <- plyr::mapvalues(x = projHeart$Sample, from = ATAC_SAMPLES, to = ATAC_REGIONS)
-projHeart$individual <- plyr::mapvalues(x = projHeart$Sample, from = ATAC_SAMPLES, to = ATAC_INDIVIDUALS)
 
 

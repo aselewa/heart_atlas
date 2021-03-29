@@ -11,13 +11,13 @@ if(length(args) > 0){
 
 # GLOBAL PARAMETERS
 # GLOBAL PARAMETERS
-RNA_SAMPLES <- c("MW200804RA","MW200804RB","MW200804RC","MW200804RD","SP-HE-MW200928E1RNA-411RNA","SP-HE-MW200928E1RNA-413RNA",
-                  "SP-HE-HE200915RNA-175RNA","SP-HE-HE200915RNA-359RNA","SP-HE-HE200915RNA-360RNA","SP-HE-HE200915RNA-397RNA","SP-HE-MW200928E1RNA-396RNA","SP-HE-MW200928E1RNA-398RNA",
-                  "SP-HE-MW200928E2RNA-175RNA", "SP-HE-MW200928E2RNA-366RNA","SP-HE-MW200928E2RNA-367RNA","SP-HE-MW200928E2RNA-407RNA","SP-HE-MW200928E1RNA-406RNA","SP-HE-MW200928E1RNA-408RNA")
+RNA_SAMPLES <- c("MW200804RA","MW200804RB","MW200804RD","SP-HE-MW200928E1RNA-413RNA",
+                  "SP-HE-HE200915RNA-175RNA","SP-HE-HE200915RNA-360RNA","SP-HE-HE200915RNA-397RNA","SP-HE-MW200928E1RNA-398RNA",
+                  "SP-HE-MW200928E2RNA-175RNA","SP-HE-MW200928E2RNA-367RNA","SP-HE-MW200928E2RNA-407RNA","SP-HE-MW200928E1RNA-408RNA")
 
-RNA_INDIVIDUALS <- c(rep("02207",6),rep("02336",6),rep("03231",6))
+RNA_INDIVIDUALS <- c(rep("02207",4),rep("02336",4),rep("03231",4))
 
-RNA_REGIONS <- rep(c("Septum","Right Atrium","Right Ventricle","Left Ventricle","Left Atrium","Apex"), 3)
+RNA_REGIONS <- rep(c("Septum","Right Ventricle","Left Ventricle","Apex"), 3)
 
 process_RNA <- function(){
   
@@ -53,10 +53,8 @@ process_RNA <- function(){
   heart_rna <- merge(x = first, y = obj.list)
   heart_rna$percent.mito <- PercentageFeatureSet(heart_rna, pattern = '^MT-')
   
-  saveRDS(heart_rna, file = "seurat/Heart_Seurat_RNA_all_samples_raw.RDS")
+  saveRDS(heart_rna, file = "seurat/Heart_Seurat_RNA_all_samples_raw_noAtrium.RDS")
   
-  meta.df <- data.frame(saturation=sat, ncells=ncells, sample=RNA_SAMPLES, individual=RNA_INDIVIDUALS, regions=RNA_REGIONS)
-  saveRDS(object = meta.df, file = 'seurat/RNA_seq_metadata.rds')
   
 }
 

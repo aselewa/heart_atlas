@@ -5,21 +5,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-### Exploration: GTEx enrichment
-
-GTEx has eQTL data for n = 495 individuals for heart tissue (left ventricle.) We hypothesize that the cardiomyocyte (CM) regulatory elements are enriched with heart eQTLs. We use Torus to perform this enrichment analysis. We plot the log2 enrichment result below. 
-
-```{r gtex1}
 source('../R/analysis_utils.R')
-
-enrich.df <- read.delim('../eQTL_enrich/results/torus_celltypes_combined.enrichment', header=F, sep="")
-
-ggplot(enrich.df, aes(x=V2, y=V1)) + geom_point() + geom_errorbar(aes(xmin=V3, xmax=V4), colour="black", width=.1) + ggClean() +
-  xlab('log2 Enrichment') + ylab('Cell Type') + geom_vline(xintercept = 0, col='red', linetype = "longdash") + ggtitle('Enrichment of ArchR DA Peaks')
 ```
+
 
 ### Heart eQTL Finemapping
 
@@ -93,7 +81,9 @@ result$eQTLs <- c(rep(c("All","Heart"), each=nrow(all.eqtl.bin)))
 ```
 
 ```{r}
+pdf('../manuscript_figures/figure4/Fig4A_tissue_sharing_eqtl.pdf', width=10, height=8)
 ggplot(result, aes(x=breaks, y=count, fill=eQTLs)) + geom_bar(stat="identity", position = "dodge", width=0.8) + ggClean() + xlab('Tissues with LFSR < 0.01') + ylab('Proportion of eQTLs') + ggtitle('Tissue Sharing of Heart eQTLs') + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + scale_fill_manual(values = c("#D6604D","#4393C3"))
+dev.off()
 ```
 
 
@@ -110,49 +100,40 @@ eqtl.gr$ntissues.active <- heart.eqtl.ntissues$mean_tissues[match(eqtl.gr$SNP, h
 Overlap generic genomic annotations with top eQTLs
 
 ```{r}
-disjoint.annots <- readRDS('../eQTL_enrich/annotations/hg38_disjoint_annotations.gr.rds')
-exon.annots <- disjoint.annots[disjoint.annots$type == "exon",]
-utr.annots <- disjoint.annots[disjoint.annots$type == "UTR",]
-intron.annots <- disjoint.annots[disjoint.annots$type == "intron",]
+annots <- readRDS('../hg38_gtf_genomic_annots.gr.rds')
+exon.annots <- annots$exons
+utr.annots <- annots$UTRs
+intron.annots <- annots$introns
 ```
 
-```{r}
-satac <- ArchR::loadArchRProject(path = '../ArchR/ArchR_heart/', showLogo = F)
-annots <- as.list(ArchR::geneAnnoHg38)
-#annots$promoters <- extendGR(resize(annots$genes, 1, "start"), upstream = 2000, downstream = 100)
-#annots$exons <- removeOverlaps(X = annots$exons, to.remove = annots$promoters)
-```
 
 Split ventrical cardiomyocyte peaks into cell-type specific and into shared.
 
 ```{r}
-union.set <- readRDS('../ArchR/ArchR_heart/PeakCalls/UnionSet.gr.rds')
+satac <- suppressMessages(ArchR::loadArchRProject('../ArchR/ArchR_heart_latest_noAtrium/', showLogo = F))
+union.set <- ArchR::getPeakSet(satac)
 union.exons <- union.set[union.set$peakType == "Exonic", ]
 
-ventCalls <- readRDS('../ArchR/ArchR_heart/PeakCalls/Vent..CM-reproduciblePeaks.gr.rds')
-markers <- readRDS('../ArchR/ArchR_heart/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
-vent.specific <- markers$`Vent. CM`
+cmCalls <- readRDS('../ArchR/ArchR_heart_latest_noAtrium/PeakCalls/Cardiomyocyte-reproduciblePeaks.gr.rds')
+cmCalls <- cmCalls[cmCalls$peakType != "Exonic",]
 
-# remove Exonic peaks (because we have exon and UTR annotation)
-union.set <- removeOverlaps(X = union.set, to.remove = union.exons) 
-ventCalls <- removeOverlaps(X = ventCalls, to.remove = union.exons)
-vent.specific <- removeOverlaps(X = vent.specific, to.remove = union.exons)
+markers <- readRDS('../ArchR/ArchR_heart_latest_noAtrium/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
+cm.specific <- markers$Cardiomyocyte
+cm.specific <- removeOverlaps(X = cm.specific, to.remove = union.exons)
 
-vent.shared <- removeOverlaps(X = ventCalls, to.remove = vent.specific)
-non.cm.peaks <- removeOverlaps(X = union.set, to.remove = ventCalls)
-non.cm.peaks <- removeOverlaps(X = non.cm.peaks, to.remove = vent.specific)
+union.no.cm.specific <- removeOverlaps(X = union.set, to.remove = cm.specific)
+non.cm.peaks <- removeOverlaps(X = union.no.cm.specific, to.remove = cmCalls)
+cm.shared <- removeOverlaps(X = union.no.cm.specific, to.remove = non.cm.peaks)
 
 intron.nonpeak <- removeOverlaps(intron.annots, to.remove = union.set)
-intron.nonpeak <- removeOverlaps(intron.nonpeak, to.remove = vent.specific)
-intron.nonpeak <- removeOverlaps(intron.nonpeak, to.remove = vent.shared)
 ```
 
 Overlap eQTLs with exons, introns, etc.
 
 ```{r}
 
-peaks.gr.list <- list("CM Specific" = vent.specific, 
-                      "CM Shared" = vent.shared,
+peaks.gr.list <- list("CM Specific" = cm.specific, 
+                      "CM Shared" = cm.shared,
                       "Non-CM" = non.cm.peaks, 
                       "Intronic" = intron.nonpeak,
                       "Exon" = exon.annots, 
@@ -200,10 +181,10 @@ plot.levels <- c("Exon","UTR","Intronic","CM Specific","CM Shared", "Non-CM", "U
 peak.set.dist.df$category <- factor(peak.set.dist.df$category, 
                                     levels = rev(plot.levels))
 
-#png('wc_distribution_1.png', width=1500, height=800, res=150)
+pdf('../manuscript_figures/figure4/Fig4B_wc_distribution_1.pdf', width=10, height=8)
 ggplot(peak.set.dist.df, aes(y=category, x=freq, fill=SNPs)) + 
   geom_bar(stat="identity", position="dodge") + ggClean() + xlab("Wc (prop. of SNPs)") + ylab("Category") + ggtitle("Distribution of Top Heart eQTLs") + scale_fill_manual(values = c("black","gray"))  + coord_cartesian(xlim=c(0, 0.4))
-#dev.off()
+dev.off()
 ```
 
 
@@ -221,21 +202,21 @@ peaks.tissue.sharing.df <- peaks.tissue.sharing.df[!is.na(peaks.tissue.sharing.d
 ```{r}
 pc_shared <- peaks.tissue.sharing.df %>% group_by(category) %>% summarise(p_shared = mean(ntissues > 15, na.rm = T))
 
-#png("p_c_shared.png", width=1000, height=800, res=150)
-ggplot(pc_shared, aes(y = category, x = p_shared)) + geom_bar(stat="identity") + ggClean() + xlab("Pc (prob. sharing)") + ylab("Category")
-#dev.off()
+pdf("../manuscript_figures/figure4/Fig4B_prob_sharing.pdf", width=6, height=8)
+ggplot(pc_shared, aes(y = category, x = p_shared)) + geom_bar(stat="identity", fill="black") + ggClean() + xlab("Pc (prob. sharing)") + ylab("Category") + xlim(c(0,1))
+dev.off()
 ```
 
 ```{r}
-#png("sharing_violin.png", width=800, height=1400, res=150)
+pdf("../manuscript_figures/figure4/Fig4B_tissues_active_dist.pdf", width=6, height=8)
 
 ggplot(peaks.tissue.sharing.df, aes(y=category, x=ntissues)) + 
-  geom_violin(fill="lightblue") + 
-  geom_boxplot(width=0.1) + 
+  geom_violin(fill="black") + 
+  geom_boxplot(width=0.1, color="lightblue") + 
   ggClean() + LegendOff() + xlab("Tissues Active (LFSR < 0.01)") + ylab("") +
   scale_x_continuous(breaks=seq(0,50,10))
 
-#dev.off()
+dev.off()
 ```
 
 Expression patterns
@@ -248,7 +229,7 @@ high_pip_gene_symbol <- high_pip_gene_symbol$SYMBOL
 ```
 
 ```{r}
-srna <- readRDS('../seurat/Heart_RNA_Processed_Combined.rds')
+srna <- readRDS('../seurat/Heart_RNA_Processed_Combined_NoAtrium.rds')
 ```
 
 ```{r}
@@ -261,10 +242,8 @@ get_cell_type_expr <- function(srna, genes){
     mean.exp[[t]] <- rowMeans(cm.specific.exp[,Seurat::Idents(srna) == t])
   }
   exp.mat <- as.data.frame(mean.exp)
-  exp.mat[,"Cardiomyocytes"] <- rowMeans(exp.mat[,c("Vent..CM","Atrial.CM")])
-  exp.mat[,c("Vent..CM","Atrial.CM")] <- NULL
   exp.mat <- as.matrix(exp.mat)
-  exp.mat.z <- sweep(exp.mat - rowMeans(exp.mat), MARGIN = 1, STAT = rowSds(exp.mat), FUN = '/') 
+  exp.mat.z <- sweep(exp.mat - rowMeans(exp.mat), MARGIN = 1, STAT = matrixStats::rowSds(exp.mat), FUN = '/') 
   
   return(exp.mat.z)
 }
@@ -297,16 +276,88 @@ ggplot(CM.egenes.exp, aes(x=Var2, y=value, fill=type)) + geom_boxplot() + ggClea
 ```
 
 
-### aFib GWAS Enrichment
-
 ```{r}
-enrich.df <- readRDS('../GWAS/Torus_Enrichment_Results_Univariate.df.rds')
-enrich.df$term <- sub(pattern = '_hg19.bed.1', replacement = "", x = enrich.df$term)
-enrich.df$term <- factor(enrich.df$term, levels=enrich.df$term[order(enrich.df$estimate, decreasing = F)])
-enrich.df <- enrich.df[enrich.df$term != "non_CM_eQTLs",]
-enrich.df <- enrich.df[enrich.df$term != "non_CM_peaks",]
 
-ggplot(enrich.df, aes(y=term, x=estimate)) + geom_point(size=3, color='darkred') + geom_errorbar(aes(xmin=low, xmax=high), width=0)  + xlab('Log2 Enrichment') + ggtitle('aFib GWAS Enrichment') + geom_vline(xintercept = 0, color='red', linetype='dashed') + theme_bw() + theme(text = element_text(size=16)) + ylab('')
+eGene_Enrichment <- function(eGenes, seurat.rna, rna.markers){
+  
+  cell.types <- as.character(unique(rna.markers$cluster))
+  result <- list()
+  
+  for( ct in c("Vent. CM")){
+    
+    rna.markers.filt <- rna.markers[rna.markers$avg_logFC > 0.1 & rna.markers$p_val_adj < 2e-06,,]
+    curr.genes <- row.names(rna.markers.filt)
+    print(nrow(rna.markers.filt))
+    
+    N <- sum(Idents(seurat.rna) == ct)
+    non.specific <- row.names(rna.markers)[!(rownames(rna.markers) %in% curr.genes)]
+    curr.exp <- (seurat.rna@assays$RNA@counts > 0)
+    curr.exp <- rowSums(curr.exp[non.specific, Idents(seurat.rna) == ct]) / N
+    shared.genes <- non.specific[curr.exp > 0.20]
+
+    genes.eqtls <- intersect(eGenes, curr.genes)
+    shared.genes.eqtls <- intersect(eGenes, shared.genes)
+
+    result[[ct]] <- data.frame(type = c("Specific", "Shared"),
+                               pval = c(1 - phyper(q = length(genes.eqtls) - 1, m = length(curr.genes), n = 19429-length(curr.genes), k = length(eGenes)),
+                                        1 - phyper(q = length(shared.genes.eqtls) - 1, m = length(shared.genes), n = 19429-length(shared.genes), k = length(eGenes))),
+                               overlap = c(length(genes.eqtls)/length(eGenes), length(shared.genes.eqtls)/length(eGenes))
+                               )
+    
+  }
+  return(result)
+}
+
 ```
 
+```{r}
+rna.markers <- readRDS('../seurat/CM_rna_markers.rds')
+```
+
+```{r}
+high_pip_genes <- finemap.res$gene[finemap.res$variant_id %in% peaks.eqtls$`CM Specific`$SNP & finemap.res$variant_pip > 0.8]
+high_pip_genes <- unique(sub('[.].*', '', high_pip_genes))
+high_pip_gene_symbol <- ensembldb::select(EnsDb.Hsapiens.v86::EnsDb.Hsapiens.v86, keys= high_pip_genes, keytype = "GENEID", columns = "SYMBOL")$SYMBOL
+
+specific.enrich <- eGene_Enrichment(eGenes = high_pip_gene_symbol, seurat.rna = srna, rna.markers = rna.markers)
+```
+
+```{r}
+high_pip_genes <- finemap.res$gene[finemap.res$variant_id %in% peaks.eqtls$`CM Shared`$SNP & finemap.res$variant_pip > 0.8]
+high_pip_genes <- unique(sub('[.].*', '', high_pip_genes))
+high_pip_gene_symbol <- ensembldb::select(EnsDb.Hsapiens.v86::EnsDb.Hsapiens.v86, keys= high_pip_genes, keytype = "GENEID", columns = "SYMBOL")$SYMBOL
+
+shared.enrich <- eGene_Enrichment(eGenes = high_pip_gene_symbol, seurat.rna = srna, rna.markers = rna.markers)
+```
+
+```{r}
+high_pip_genes <- finemap.res$gene[finemap.res$variant_pip > 0.8]
+high_pip_genes <- unique(sub('[.].*', '', high_pip_genes))
+high_pip_gene_symbol <- ensembldb::select(EnsDb.Hsapiens.v86::EnsDb.Hsapiens.v86, keys= high_pip_genes, keytype = "GENEID", columns = "SYMBOL")$SYMBOL
+
+all.enrich <- eGene_Enrichment(eGenes = high_pip_gene_symbol, seurat.rna = srna, rna.markers = rna.markers)
+```
+
+```{r}
+random.genes <- rownames(srna)[sample(1:nrow(srna), size = 1000, replace = F)]
+rand.enrich <- eGene_Enrichment(eGenes = high_pip_gene_symbol, seurat.rna = srna, rna.markers = rna.markers)
+```
+
+```{r}
+enrich.df <- rbind(specific.enrich$`Vent. CM`, shared.enrich$`Vent. CM`, all.enrich$`Vent. CM`, rand.enrich$`Vent. CM`)
+enrich.df["mlog10pval"] <- -log10(enrich.df$pval)
+enrich.df["eGenes"] <- c(rep("CM Specific eGenes", 2), rep("CM Shared eGenes", 2), rep("All eGenes (PIP>0.8)", 2), rep("Random", 2))
+```
+
+```{r}
+p1 <- ggplot(enrich.df, aes(x=type, y=overlap, fill=eGenes)) + geom_bar(stat="identity", position="dodge") + ggClean(rotate_axis = T) + xlab("Cardiomyocyte Genes") + ylab("Proportion of eGenes") 
+```
+
+```{r}
+p2 <- ggplot(enrich.df, aes(x=type, y=mlog10pval, fill=eGenes)) + geom_bar(stat="identity", position="dodge") + ggClean(rotate_axis = T) + xlab("Cardiomyocyte Genes") + ylab("-log10 pval") + LegendOff()
+```
+
+```{r}
+p1 + p2
+```
 

@@ -2,13 +2,13 @@ library(ArchR)
 library(ggplot2)
 library(tidyverse)
 
-addArchRThreads(threads = 8) 
+addArchRThreads(threads = 12) 
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 macs2 <- '/project2/gca/software/miniconda3/bin/macs2'
 
 source('R/analysis_utils.R')
 
-archr_project_path <- 'ArchR/ArchR_heart/'
+archr_project_path <- 'ArchR/ArchR_heart_latest_noAtrium/'
 
 projHeart <- loadArchRProject(archr_project_path)
 
@@ -25,26 +25,26 @@ markersPeaks <- getMarkerFeatures(ArchRProj = projHeart,
 saveRDS(markersPeaks, paste0(archr_project_path,'/PeakCalls/DA_markerPeaks.rds'))
 
 markers <- getMarkers(markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
-saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds'))
+saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_10_log2FC_0.5.rds'))
 
 saveArchRProject(projHeart) 
-  
-projHeart <- addMotifAnnotations(ArchRProj = projHeart, motifSet = "cisbp", name = "Motif", force = T)
-projHeart <- addDeviationsMatrix(ArchRProj = projHeart, peakAnnotation = "Motif", force = T)
-projHeart <- addGeneIntegrationMatrix(
-  ArchRProj = projHeart, 
-  useMatrix = "GeneScoreMatrix",
-  matrixName = "GeneIntegrationMatrix",
-  reducedDims = "harmony",
-  seRNA = srna,
-  addToArrow = TRUE,
-  force= TRUE,
-  groupRNA = "cellTypes",
-  nameCell = "predictedCell",
-  nameGroup = "predictedGroup",
-  nameScore = "predictedScore"
-)
 
-saveArchRProject(projHeart) 
+# Motif Enrichment
+motifPWMs <- readRDS("Vierstra_Motifs/Vierstra-Human-Motifs.rds")
+tf.prefix <-  sub('_.*', '', names(motifPWMs))
+motifPWMs <- motifPWMs[tf.prefix == toupper(tf.prefix)] #human only
+
+projHeart <- addMotifAnnotations(projHeart, motifPWMs = motifPWMs, name = "Vierstra")
+projHeart <- addDeviationsMatrix(ArchRProj = projHeart, peakAnnotation = "Vierstra", force = T)
+
+# Co-accessibility
+satac <- addCoAccessibility(ArchRProj = satac, reducedDims = 'harmony', maxDist = 1e6)
+
+# BigWigs by cell-type
+getGroupBW(ArchRProj = satac, groupBy = "CellTypes")
+
+saveArchRProject(satac) 
+
+
 
 
