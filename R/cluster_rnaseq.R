@@ -90,11 +90,13 @@ ggsave(filename = paste0('seurat/plots/umap_combined_celltypes.png'), plot = p, 
 
 saveRDS(heart_rna_filtered, file = "seurat/Heart_RNA_Processed_Combined_NoAtrium.rds")
 
-
 markers <- FindAllMarkers(object = srna, logfc.threshold = 0.25, only.pos = T)
 saveRDS(markers, file = 'seurat/CM_rna_markers.rds')
 
-
-
-
-
+# number of cells per region by donor
+stats.df <- data.frame(numi=srna$nCount_RNA, donor=srna$individual, region=srna$region) %>% 
+    group_by(region, donor) %>% 
+    summarise(ncell=n())
+png('manuscript_figures/nNuc_RNA_postQC.png',width=2000,height=1400,res=300)
+ggplot(stats.df, aes(x = region, y = ncell, fill=donor)) + geom_bar(stat="identity", position="dodge") + ggClean(rotate_axis = T) + ylab("Number of Nuclei") + xlab("") + scale_fill_brewer(palette = "Set2") + LegendOff()
+dev.off()

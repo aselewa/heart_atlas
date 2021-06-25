@@ -31,9 +31,9 @@ satac <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_latest_noAtrium
 We can visualize the six different regions:
 
 ```{r umap1, fig.width=10, fig.height=5}
-palette <- setNames(brewer.pal(4, "Set2"), unique(srna$region))
+palette <- setNames(brewer.pal(4, "Set1"), unique(srna$region))
 p1 <- custom_dim_plot(seurat = srna, group.by = 'region', palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle('snRNA-seq') 
-p2 <- custom_archr_plot(archr_project = satac, group.by = 'regions', palette = palette, legend = F, label = F, pt.size = 0.05) + ggtitle('snATAC-seq')
+p2 <- custom_archr_plot(archr_project = satac, group.by = 'regions', palette = palette, legend = F, label = F, pt.size = 0.05, alpha = 0.3) + ggtitle('snATAC-seq')
 p1 + p2
 ```
 
@@ -51,6 +51,16 @@ palette <- readRDS('palette.rds')
 srna$cellTypes <- Idents(srna)
 rna.umap <- custom_dim_plot(srna, group.by = "cellTypes", label = T, legend = F, palette = palette) + ggtitle('snRNA-seq') + xlim(c(-15,15)) 
 atac.umap <- custom_archr_plot(archr_project = satac, group.by = 'CellTypes', palette = palette, legend = F, label = T) + ggtitle('snATAC-seq') + xlim(c(-15,15)) 
+rna.umap + atac.umap
+```
+
+RNA label transfer results
+
+```{r umap2, warning=FALSE, fig.width=14, fig.height=8}
+palette <- readRDS('palette.rds')
+srna$cellTypes <- Idents(srna)
+rna.umap <- custom_dim_plot(srna, group.by = "cellTypes", label = T, legend = F, palette = palette) + ggtitle('snRNA-seq') + xlim(c(-15,15)) 
+atac.umap <- custom_archr_plot(archr_project = satac, group.by = 'predictedGroup_srna', palette = palette, legend = F, label = T) + ggtitle('snATAC-seq - Transferred Label') + xlim(c(-15,15)) 
 rna.umap + atac.umap
 ```
 

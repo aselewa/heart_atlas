@@ -14,6 +14,9 @@ peaks <- getPeakSet(satac)
 peaks$peakID <- GRToString(peaks)
 peak.markers <- readRDS('ArchR/ArchR_heart_latest_noAtrium/PeakCalls/DA_MARKERS_FDRP_1_log2FC_1.rds')
 
+other.ranges <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coacc_ENHANCERS_AllCellTypes_overlapCutoff50_k200_corr_cut_-1_maxDist_1Mb_hg38.gr.rds')
+other.ranges <- other.ranges[other.ranges$correlation > 0.5,]
+
 #annotate all peaks with DA test results
 celltype_ideal_order <- c("Cardiomyocyte","Smooth Muscle","Pericyte","Endothelial","Fibroblast","Neuronal", "Lymphoid","Myeloid")
 peak.markers <- lapply(celltype_ideal_order, function(x){peak.markers[[x]]})
@@ -30,18 +33,18 @@ enrich.res <- list()
 for(ct in celltype_ideal_order){
     
     curr <- peak.info.df[peak.info.df$cellType == ct,]
-    curr <- curr[curr$peakType != "Distal", ]
+    curr.coacc.genes <- other.ranges$coacc_gene_name[other.ranges$peakID %in% curr$peakID]
     
-    enrich.res[[ct]] <- enrichGO(gene = unique(curr$nearestGene),
+    enrich.res[[ct]] <- enrichGO(gene = unique(curr.coacc.genes),
                                  OrgDb = org.Hs.eg.db::org.Hs.eg.db,
                                  keyType = "SYMBOL", 
                                  ont = "ALL", 
                                  qvalueCutoff = 0.05)
 }
 
-saveRDS(enrich.res, file = 'enrichGO_results.rds')
+saveRDS(enrich.res, file = 'enrichGO_coaccess_results.rds')
 
-enrich.res <- readRDS('enrichGO_results.rds')
+enrich.res <- readRDS('enrichGO_coaccess_results.rds')
 
 # Add fold-change results
 for (ct in names(enrich.res)){
@@ -64,7 +67,7 @@ top.GO.ids <- list()
 for (ct in names(enrich.res)){
     top.GO.ids[[ct]] <- enrich.res[[ct]]@result %>%
         filter(ONTOLOGY == "BP") %>%
-        arrange(-FoldChange, pvalue) %>% head(40) %>%
+        arrange(-FoldChange, pvalue) %>% head(200) %>%
         dplyr::select(ONTOLOGY, ID, Description, FoldChange, pvalue, qvalue) %>%
         mutate(celltype = ct)
 }
@@ -93,7 +96,8 @@ for (ct in names(enrich.res)){
 top.GO.df <- do.call(rbind, top.GO.ids) %>%
     distinct(ID, Description)
 # interest.GO.ids <- c("GO:0060047", "GO:0030048", "GO:0007160", "GO:0043542", "GO:0030199", "GO:0010001", "GO:0030098", "GO:0042119") # By pvalue
-interest.GO.ids <- c("GO:0055003", "GO:1905065", "GO:0038166", "GO:0060312", "GO:0030199", "GO:0099560", "GO:0043379", "GO:0002281") # By fold change
+#interest.GO.ids <- c("GO:0055003", "GO:1905065", "GO:0038166", "GO:0060312", "GO:0030199", "GO:0099560", "GO:0043379", "GO:0002281") # By fold change
+interest.GO.ids <- c("GO:0031033", "GO:0030049","GO:0060837","GO:0060055","GO:1901201","GO:0001941","GO:0002291","GO:0001780")
 interest.GO.terms <- top.GO.df$Description[match(interest.GO.ids, top.GO.df$ID)]
 
 top.qvalue.mat <- matrix(nrow = length(interest.GO.ids),
@@ -119,10 +123,11 @@ qval.foldchange.df <- reshape2::melt(top.FC.mat, value.name = "FC") %>% #
     mutate(GO_term = factor(GO_term, levels = rev(interest.GO.terms)))
 
 
-pdf('manuscript_figures/figure3/Fig3_EnrichGO.pdf', width=15, height=8)
+pdf('manuscript_figures/figure3/Fig3_EnrichGO_Coaccess.pdf', width=20, height=8)
 ggplot(qval.foldchange.df) + 
-    ggrastr::geom_point_rast(aes(x = Cell_type, y = GO_term, size = FC, color = mlogqval)) +
+    geom_point(aes(x = Cell_type, y = GO_term, size = FC, color = mlogqval)) +
     scale_size_continuous(range = c(1, 10)) +
     ggClean(rotate_axis = T) +
     scale_color_gradientn(colors = c('navy',"yellow",'red'))
 dev.off()
+

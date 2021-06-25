@@ -1,6 +1,5 @@
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 
-library(ggplot2)
 library(tidyverse)
 
 # gwas <- readRDS('GWAS/summary_statistics/aFib/ebi-a-GCST006414_aFib.df.rds')
@@ -8,13 +7,13 @@ library(tidyverse)
 # gwas$pval[gwas$pval > 50] <- 50
 # gwas$pos_kb <- gwas$pos/1e3
 
-finemap.genes <- read_csv('GWAS/gene_pips_summary.csv')
-genomic.annots <- readRDS('hg19_genomic_annotations.gr.rds')
+finemap.genes <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
+genomic.annots <- readRDS('genomic_annotations/hg19_gtf_genomic_annots.gr.rds')
 gene.cords <- genomic.annots$genes
 gene.cords$chr <- as.integer(sub("chr", "", as.character(seqnames(gene.cords))))
 gene.cords$start <- start(gene.cords) / 1e3
 
-gene.cord.df <- gene.cords@elementMetadata %>% as_tibble()
+gene.cord.df <- gene.cords@elementMetadata %>% as_tibble() %>% select(gene_name, gene_id, chr, start)
 finemap.genes.pip <- finemap.genes %>% dplyr::select(gene_name, gene_pip) %>% distinct()
 gene.pip.summary <- left_join(finemap.genes.pip, gene.cord.df, on="gene_name")
 gene.pip.summary$is_highlight <- gene.pip.summary$gene_pip > 0.5
@@ -25,10 +24,10 @@ null.gene.pip.summary <- data.frame(gene_name = null.genes.gr$gene_name,
                                     gene_id = null.genes.gr$gene_id, 
                                     chr = as.integer(seqnames(null.genes.gr)),
                                     start = start(null.genes.gr) / 1e3,
-                                    is_highlight = F)
+                                    is_highlight = F, stringsAsFactors = F) %>% as_tibble()
 
-full.gene.pip.summary <- rbind(gene.pip.summary, null.gene.pip.summary) %>% as_tibble()
-  
+full.gene.pip.summary <- bind_rows(gene.pip.summary, null.gene.pip.summary)
+
 don <- full.gene.pip.summary %>% 
   
   # Compute chromosome size
@@ -48,24 +47,24 @@ don <- full.gene.pip.summary %>%
 
 axisdf <- don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
 
-png(file = 'gene_manhattan.png', width = 3500, height=1800, res = 300)
+pdf(file = 'manuscript_figures/Fig5D_gene_manhattan.pdf', width = 12, height=6)
 
 ggplot(don, aes(x=BPcum, y=gene_pip)) +
   
   # Show all points
-  geom_point( aes(color=as.factor(chr)), size=2) +
+  ggrastr::geom_point_rast( aes(color=as.factor(chr)), size=2) +
   scale_color_manual(values = rep(c("grey", "skyblue"), 22 )) +
   
   # custom X axis:
   scale_x_continuous( label = axisdf$chr, breaks= axisdf$center ) +
   
-  scale_y_continuous(expand = c(0, 0), limits = c(0,1.5)) +     # remove space between plot area and x axis
+  scale_y_continuous(expand = c(0, 0), limits = c(0,1.25)) +     # remove space between plot area and x axis
   
   # Add highlighted points
-  geom_point(data=subset(don, is_highlight==T), color="orange", size=2) +
+  ggrastr::geom_point_rast(data=subset(don, is_highlight==T), color="orange", size=2) +
   
   # Add label using ggrepel to avoid overlapping
-  ggrepel::geom_label_repel( data=subset(don, is_highlight==T), aes(label=gene_name), size=4) +
+  ggrepel::geom_label_repel( data=subset(don, is_highlight==T), aes(label=gene_name), size=4, min.segment.length = 0) +
   
   # Custom the theme:
   theme_bw() +

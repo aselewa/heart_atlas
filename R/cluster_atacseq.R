@@ -104,3 +104,29 @@ for(i in 1:length(z)){
     theme(text = element_text(size=12)) + scale_fill_gradientn(colours = c("lightblue","yellow","red"))
 }
 do.call("grid.arrange", plist)
+
+# number of nuclei in the QC version
+stats.df <- data.frame(nfrag=archr_project$nFrags, donor=archr_project$individual, region=archr_project$regions) %>% 
+    group_by(region, donor) %>% 
+    summarise(ncell=n())
+png('manuscript_figures/nNuc_postQC.png',width=2000,height=1400,res=300)
+ggplot(stats.df, aes(x = region, y = ncell, fill=donor)) + geom_bar(stat="identity", position="dodge") + ggClean(rotate_axis = T) + ylab("Number of Nuclei") + xlab("") + scale_fill_brewer(palette = "Set2") + LegendOff()
+dev.off()
+
+#integration with RNA
+srna <- readRDS('seurat/Heart_RNA_Processed_Combined_NoAtrium.rds')
+srna$celltypes <- Idents(srna)
+archr_project <- addGeneIntegrationMatrix(
+    ArchRProj = archr_project,
+    useMatrix = "GeneScoreMatrix",
+    matrixName = "GeneIntegrationMatrix",
+    reducedDims = "harmony",
+    seRNA = srna,
+    addToArrow = FALSE,
+    groupRNA = "celltypes",
+    nameCell = "predictedCell_srna",
+    nameGroup = "predictedGroup_srna",
+    nameScore = "predictedScore_srna",
+    force =TRUE
+)
+saveArchRProject(archr_project)

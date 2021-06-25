@@ -28,7 +28,7 @@ get_density <- function(x, y, ...) {
 ### scRNA-seq
 
 ```{r}
-srna <- readRDS('../seurat/Heart_Seurat_RNA_all_samples_raw.RDS')
+srna <- readRDS('../seurat/Heart_Seurat_RNA_all_samples_raw_noAtrium.RDS')
 ```
 
 ```{r}
@@ -54,7 +54,7 @@ ggplot(qc.df, aes(x = rank, y=umi, color=Donor)) + geom_line(aes(linetype = Type
   scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
                 labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   scale_linetype_manual(values = c("dashed","solid")) + 
-  xlab('Barcodes') + ylab('UMI')
+  xlab('Barcodes') + ylab('UMI') + scale_color_brewer(palette = 'Set2')
 
 ```
 
@@ -81,7 +81,7 @@ do.call(grid.arrange, plist)
 #### Library size distribution
 
 ```{r}
-comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_raw/', showLogo = F))
+comb <- suppressMessages(loadArchRProject('../ArchR/ArchR_heart_noAtrium_raw/', showLogo = F))
 ```
 
 ```{r}
@@ -91,17 +91,19 @@ ggplot(stats.df, aes(x = region, y = nfrag, fill=donor)) + geom_boxplot() + ggCl
 
 ```{r}
 stats.df <- data.frame(nfrag=comb$nFrags, donor=comb$individual, region=comb$regions) %>% group_by(region, donor) %>% summarise(ncell=n())
-ggplot(stats.df, aes(x = region, y = ncell, fill=donor)) + geom_bar(stat="identity") + ggClean(rotate_axis = T) + ylab("Cells") + xlab("")
+png('../manuscript_figures/nNuc_preQC.png',width=2000,height=1400,res=300)
+ggplot(stats.df, aes(x = region, y = ncell, fill=donor)) + geom_bar(stat="identity", position="dodge") + ggClean(rotate_axis = T) + ylab("Number of Nuclei") + xlab("") + scale_fill_brewer(palette = "Set2") + LegendOff()
+dev.off()
 ```
 
 
 
 ```{r}
-ATAC_SAMPLES <- c("MW200804AA","MW200804AB","Deep_MW200804AC","Deep_MW200804AD","SP-HE-MW200928E1ATAC-411ATAC","SP-HE-MW200928E1ATAC-413ATAC",
-                 "SP-HE-HE200915ATAC-175ATAC","SP-HE-HE200915ATAC-359ATAC","Deep_SP-HE200915ATAC-360ATAC","Deep_SP-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-396ATAC","SP-HE-MW200928E1ATAC-398ATAC",
-                 "SP-HE-MW200928E2ATAC-175ATAC", "SP-HE-MW200928E2ATAC-366ATAC","Deep_SP-MW200928E2ATAC-367ATAC","Deep_SP-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-406ATAC","SP-HE-MW200928E1ATAC-408ATAC")
+ATAC_SAMPLES <- c("MW200804AA","Deep_MW200804AC","Deep_MW200804AD","SP-HE-MW200928E1ATAC-413ATAC",
+                 "SP-HE-HE200915ATAC-175ATAC","Deep_SP-HE200915ATAC-360ATAC","Deep_SP-HE200915ATAC-397ATAC","SP-HE-MW200928E1ATAC-398ATAC",
+                 "SP-HE-MW200928E2ATAC-175ATAC","Deep_SP-MW200928E2ATAC-367ATAC","Deep_SP-MW200928E2ATAC-407ATAC","SP-HE-MW200928E1ATAC-408ATAC")
 
-ATAC_INDIVIDUALS <- c(rep("black",6),rep("blue",6),rep("red",6))
+ATAC_INDIVIDUALS <- c(rep("black",4),rep("blue",4),rep("red",4))
 
 curr_x <- sort(log2(comb$nFrags[comb$Sample==ATAC_SAMPLES[1]]))
 curr_y <- 1:length(curr_x)/length(curr_x)
@@ -125,7 +127,7 @@ This shows the distribution of TSS enrichment across cells. Cells with low value
 
 ```{r}
 tss.df <- data.frame(tss.enrich = comb$TSSEnrichment,
-                     nfrag  = log10(comb$nMonoFrags), 
+                     nfrag  = log10(comb$nFrags), 
                      sample = comb$Sample, 
                      donor = comb$individual,
                      stringsAsFactors = F)
@@ -139,15 +141,25 @@ for(s in samples){
   
   curr.tss.df <- tss.df[tss.df$sample==s,]
   curr.tss.df$density <- get_density(x = curr.tss.df$tss.enrich, y = curr.tss.df$nfrag, n = 50)
+
+  p <- ggplot(curr.tss.df, aes(x=tss.enrich, y=nfrag, color=density)) + 
+      geom_point() +
+      scale_colour_gradientn(colours = c("lightblue","yellow","red")) + 
+      ggClean() + 
+      geom_hline(yintercept = 3.7, linetype="dashed") + 
+      geom_vline(xintercept = 5, linetype="dashed") + 
+      LegendOff() + xlab("") + ylab("")
   
-  p <- ggplot(curr.tss.df, aes(x=tss.enrich, y=nfrag, color=density)) + geom_point() + scale_colour_gradientn(colours = c("lightblue","yellow","red")) + ggClean() + ylim(c(2.5, 5)) + geom_hline(yintercept = 3, linetype="dashed") + geom_vline(xintercept = 5, linetype="dashed") + LegendOff() + xlab("") + ylab("")
   plist[[s]] <- p
 }
 ```
 
 ```{r}
-do.call("grid.arrange",plist)
+png('../manuscript_figures/ATAC_QC.png', width = 2500, height=1400, res = 300)
+do.call("grid.arrange", c(plist, list(nrow=3)))
+dev.off()
 ```
+
 
 
 

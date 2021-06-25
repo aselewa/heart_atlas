@@ -1,7 +1,6 @@
 library(ggplot2)
-library(Gviz)
 library(lattice)
-source('R/analysis_utils.R')
+source('/project2/gca/aselewa/heart_atlas_project/R/analysis_utils.R')
 
 require(org.Hs.eg.db)
 require(TxDb.Hsapiens.UCSC.hg19.knownGene)
@@ -92,7 +91,7 @@ knownGeneObject <- function(curr.locus.gr, genome){
                              genome = "hg19", 
                              chromosome = as.character(seqnames(curr.locus.gr)),
                              start = start(curr.locus.gr),
-                             end = end(curr.locus.gr))
+                             end = end(curr.locus.gr), name = "Genes")
   
   symbol(grtrack) <- mapIds(org.Hs.eg.db::org.Hs.eg.db, 
                             keys=sub("\\.\\d+$", "", gene(grtrack)), 
@@ -109,7 +108,7 @@ geneTrackPlot <- function(curr.locus.gr, collapseTranscripts=T, genome="hg19"){
     gene.track <- lattice::xyplot(1 ~ 1 | 1, 
                                   strip = F, 
                                   panel = function(x){plotTracks(knownGeneObject, 
-                                                                 panel.only = T, 
+                                                                 panel.only = F, 
                                                                  transcriptAnnotation = "symbol", 
                                                                  collapseTranscripts= collapseTranscripts, 
                                                                  add = T, 
@@ -124,19 +123,24 @@ geneTrackPlot <- function(curr.locus.gr, collapseTranscripts=T, genome="hg19"){
 }
 
 # needs a GRanges object with a score metadata column that contains the accessibility
-plotATAC <- function(gr, region.focus){
+plotATAC <- function(gr, region.focus, max.ylim=150, fill.col = "darkgreen"){
   gr <- subsetByOverlaps(gr, region.focus)
   score <- gr$score
   plot.df <- data.frame(start = start(gr), end = end(gr), score = score)
   
-  p <- ggplot(plot.df) + geom_rect(aes(xmin = start, xmax = end, ymin=0, ymax=score), color = "darkgreen", fill="darkgreen") + 
+  p <- ggplot(plot.df) + geom_rect(aes(xmin = start, xmax = end, ymin=0, ymax=score), color = fill.col, fill=fill.col) + 
     theme_classic() + 
     ylab("") +
     xlab("") + 
     LegendOff() + 
-    theme_void() +
-    ylim(c(0, 150)) +
-    coord_cartesian(xlim=c(start(region.focus), end(region.focus))) 
+    ylim(c(0, max.ylim)) +
+    coord_cartesian(xlim=c(start(region.focus), end(region.focus))) +
+      theme(axis.line.x=element_blank(),
+            axis.text.x=element_blank(),
+            axis.ticks.x=element_blank(),
+            axis.title.x=element_blank(),
+            panel.grid.minor.x=element_blank(),
+            panel.grid.major.x=element_blank())
   
   return(p)
 }
@@ -150,21 +154,51 @@ plotRect <- function(gr, region.focus, col){
     
     if(length(gr) > 0){
         plot.df <- data.frame(start = start(gr), end = end(gr))
-        
-        p <- ggplot(plot.df) + geom_rect(aes(xmin = start, xmax = end, ymin=0, ymax=1), color = col, fill=col) + 
-            theme_classic() + 
-            ylab("") +
-            xlab("") + 
-            LegendOff() + 
-            xlim(c(start(region.focus), end(region.focus))) +
-            theme_void() +
-            ylim(c(0, 1))
-        
-        return(p)   
     }
     else{
-        return(NULL)
+        plot.df <- data.frame(start = start(region.focus), end = end(region.focus))
+        col <- "white"
     }
+    p <- ggplot(plot.df) + geom_rect(aes(xmin = start, xmax = end, ymin=0, ymax=1), color = col, fill=col) + 
+        theme_classic() + 
+        ylab("") +
+        xlab("") + 
+        LegendOff() + 
+        ylim(c(0, 1)) + 
+        theme_void() +
+        coord_cartesian(xlim = c(start(region.focus), end(region.focus)))
+        
+    
+    return(p)   
+
+}
+
+plotRectGene <- function(gr, region.focus, col){
+    
+    seqlevelsStyle(gr) <- "UCSC"
+    seqlevelsStyle(region.focus) <- "UCSC"
+    
+    gr <- subsetByOverlaps(gr, region.focus)
+    
+    if(length(gr) > 0){
+        plot.df <- data.frame(start = start(gr), end = end(gr))
+    }
+    else{
+        plot.df <- data.frame(start = start(region.focus), end = end(region.focus))
+        col <- "white"
+    }
+    p <- ggplot(plot.df) + geom_rect(aes(xmin = start, xmax = end, ymin=0, ymax=1), color = col, fill=col) + 
+        theme_classic() + 
+        ylab("") +
+        xlab("") + 
+        LegendOff() + 
+        ylim(c(0, 1)) + 
+        theme_void() + 
+        coord_cartesian(xlim = c(start(region.focus), end(region.focus)))
+    
+    
+    return(p)   
+    
 }
 
 # requires a dataframe with a chromosome column (chr), a position of the enhancer (enhancer_mid), and promoter (promoter_mid)
@@ -173,6 +207,7 @@ HiC.track <- function(HiC.Midpoints, curr.locus.gr, links.to.highlight=NULL, cur
   HiC.Midpoints$highlight <- FALSE
   if(!is.null(links.to.highlight)){
     HiC.Midpoints[links.to.highlight,"highlight"] <- TRUE
+    
   }
   
   curr.region <- HiC.Midpoints[HiC.Midpoints$chr == as.character(seqnames(curr.locus.gr)), ]
@@ -183,39 +218,22 @@ HiC.track <- function(HiC.Midpoints, curr.locus.gr, links.to.highlight=NULL, cur
     geom_curve(data = subset(curr.region, enhancer_mid < promoter_mid),curvature = curv, ncp = 1000) + 
     
     xlim(c(start(curr.locus.gr), end(curr.locus.gr))) + 
-    theme_void() + 
-    LegendOff() + scale_color_manual(values = c("black","red")) + 
+    scale_color_manual(values = c("black","red")) + 
     scale_size_manual(values = c(0.3, 1)) + 
     scale_alpha_manual(values = c(0.2, 0.5)) +
-    scale_y_continuous(expand = c(0, 0), limits = c(-0.01, 0))
+    scale_y_continuous(expand = c(0, 0), limits = c(-0.01, 0)) +
+    theme_classic() + 
+    theme(axis.line.x=element_blank(),
+            axis.text.x=element_blank(),
+            axis.ticks.x=element_blank(),
+            axis.title.x=element_blank(),
+            panel.grid.minor.x=element_blank(),
+            panel.grid.major.x=element_blank()) +
+    LegendOff()
   
   hic.plot
 }
 
 
-snp.investigator <- function(snp.gr){
-    
-    bw.files <- c("ArchR/ArchR_heart_latest_noAtrium/GroupBigWigs/CellTypes/Cardiomyocyte-TileSize-100-normMethod-ReadsInTSS-ArchR.bw",
-                  "ArchR/ArchR_heart_latest_noAtrium/GroupBigWigs/CellTypes/Fibroblast-TileSize-100-normMethod-ReadsInTSS-ArchR.bw")
-    bw.list <- lapply(bw.files, function(x){rtracklayer::import(x)})
-    
-    bed.files <- c('GWAS/annotations_hg38/CM_specific_peaks.bed', 'GWAS/annotations_hg38/CM_shared_peaks.bed', 'GWAS/annotations_hg38/non_CM_peaks.bed')
-    bed.list <- lapply(bed.files, function(x){rtracklayer::import(x)})
-    
-    
-    #my.snp <- GRanges(seqnames = "chr1", ranges = IRanges(start = 170618199, end = 170618199))
-    curr.locus.gr <- snp.gr + 10000
-    
-    plot.list <- list()
-    #plot.list[["gene.track"]] <- geneTrackPlot(curr.locus.gr = curr.locus.gr, collapseTranscripts = "longest", genome = "hg38")
-    
-    plot.list[["cm.track"]] <- plotATAC(gr = bw.list[[1]], region.focus = curr.locus.gr) + geom_vline(xintercept = 170618199)
-    plot.list[["fibro.track"]] <- plotATAC(gr = bw.list[[2]], region.focus = curr.locus.gr) + geom_vline(xintercept = 170618199)
-    
-    plot.list[["CM_specific_peaks"]] <- plotRect(gr = bed.list[[1]], region.focus = curr.locus.gr, col = 'blue')
-    plot.list[["CM_shared_peaks"]] <- plotRect(gr = bed.list[[2]], region.focus = curr.locus.gr, col='red')
-    plot.list[["non_CM_peaks"]] <- plotRect(gr = bed.list[[3]], region.focus = curr.locus.gr, col='green')
-    
-    cowplot::plot_grid(plotlist = plot.list, align = 'v', ncol = 1, axis = 'b')
-}
+
 

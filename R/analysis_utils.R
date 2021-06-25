@@ -2,7 +2,10 @@ library(ggplot2)
 library(patchwork)
 library(RColorBrewer)
 library(GenomicRanges)
+library(liftOver)
 library(dplyr)
+
+ideal_order <- c("Cardiomyocyte","Smooth Muscle","Pericyte","Endothelial","Fibroblast","Neuronal", "Lymphoid","Myeloid")
 
 get_density <- function(x, y, ...) {
   dens <- MASS::kde2d(x, y, ...)
@@ -151,9 +154,9 @@ removeOverlaps <- function(X, to.remove){
   X
 }
 
-subsetByOverlapProp <- function(q, s, minPoverlap){
+subsetByOverlapProp <- function(q, s, minPoverlap, maxgap=0){
   
-  hits <- GenomicRanges::findOverlaps(query = q, subject = s)
+  hits <- GenomicRanges::findOverlaps(query = q, subject = s, maxgap = maxgap)
   overlaps <- pintersect(q[queryHits(hits)], s[subjectHits(hits)])
   percentOverlap <- width(overlaps) / width(q[queryHits(hits)])
   hits <- hits[percentOverlap >= minPoverlap]
@@ -200,6 +203,7 @@ get_elements_overlap_snps <- function(snp.gr, annotations) {
     for (f in annotations) {
         name <- paste0(basename(f), "_d")
         curr <- rtracklayer::import(f, format = "bed")
+        seqlevelsStyle(curr) <- "NCBI"
         curr <- GenomicRanges::reduce(curr)
         overlap.df <- plyranges::join_overlap_inner(curr, snp.gr) %>% 
             as_tibble() %>% mutate(enhancer = paste0('chr',seqnames, ':', start, '-', end)) %>% 
@@ -218,4 +222,73 @@ get_snp_to_gene_dist <- function(snp.gr, gene.gr, genes=NULL){
     
 }
 
+get_inner_gr_distance <- function(x.gr){
+    
+    x.gr.split <- GenomicRanges::split(x = x.gr, seqnames(x.gr))
+    chr.dist <- list()
+    
+    for(i in 1:length(x.gr.split)){
+        curr.gr <- x.gr.split[[i]]
+        midpoints <- (start(curr.gr) + end(curr.gr))/2
+        dist.distribution <- rep(0, length(midpoints)-1)
+        for(j in 2:length(midpoints)){
+            dist.distribution[j-1] <- midpoints[j] - midpoints[j-1]
+        }
+        
+        chr.dist[[i]] <- dist.distribution
+    }
+    
+    return(unlist(chr.dist, use.names = F))
+}
 
+hg38ToHg19 <- function(gr){
+
+    path <- system.file(package="liftOver", "extdata", "hg38ToHg19.over.chain")
+    ch <- import.chain(path)
+    unlist(liftOver(gr, ch))
+    
+}
+
+
+computeKNN <- function(
+    data = NULL,
+    query = NULL,
+    k = 50,
+    includeSelf = FALSE,
+    ...
+){
+    if(is.null(query)){
+        query <- data
+        searchSelf <- TRUE
+    }else{
+        searchSelf <- FALSE
+    }
+    if(searchSelf & !includeSelf){
+        knnIdx <- nabor::knn(data = data, query = query, k = k + 1, ...)$nn.idx
+        knnIdx <- knnIdx[,-1,drop=FALSE]
+    }else{
+        knnIdx <- nabor::knn(data = data, query = query, k = k, ...)$nn.idx
+    }
+    knnIdx
+}
+
+
+source_overlapCNN <- function(){
+    Rcpp::sourceCpp(file = 'R/KNN_Utils.cpp')
+}
+
+
+prop_overlap_links <- function(X_e, X_p, Y_e, Y_p){
+    
+    enhancer.hits <- GenomicRanges::findOverlaps(query = X_e, subject = Y_e, maxgap = 1500)
+    promoter.hits <- GenomicRanges::findOverlaps(query = X_p, subject = Y_p, maxgap = 1500)
+    
+    ehits.str <- paste0(queryHits(enhancer.hits),'-',subjectHits(enhancer.hits))
+    phits.str <- paste0(queryHits(promoter.hits),'-',subjectHits(promoter.hits))
+    
+    ehitsIn <- queryHits(enhancer.hits)
+    ehitsIn <- ehitsIn[ehits.str %in% phits.str]
+    ehitsIn <- unique(ehitsIn)
+    
+    length(ehitsIn)/length(X_e)
+}

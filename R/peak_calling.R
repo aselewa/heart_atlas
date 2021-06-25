@@ -24,18 +24,14 @@ markersPeaks <- getMarkerFeatures(ArchRProj = projHeart,
 
 saveRDS(markersPeaks, paste0(archr_project_path,'/PeakCalls/DA_markerPeaks.rds'))
 
-markers <- getMarkers(markersPeaks, cutOff = "FDR <= 0.01 & Log2FC >= 1", returnGR = T)
-saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_10_log2FC_0.5.rds'))
+markers <- getMarkers(markersPeaks, cutOff = "FDR <= 0.1 & Log2FC >= 0.1", returnGR = T)
+saveRDS(markers, file = paste0(archr_project_path,'/PeakCalls/DA_MARKERS_FDRP_10_log2FC_0.rds'))
 
 saveArchRProject(projHeart) 
 
 # Motif Enrichment
-motifPWMs <- readRDS("Vierstra_Motifs/Vierstra-Human-Motifs.rds")
-tf.prefix <-  sub('_.*', '', names(motifPWMs))
-motifPWMs <- motifPWMs[tf.prefix == toupper(tf.prefix)] #human only
-
-projHeart <- addMotifAnnotations(projHeart, motifPWMs = motifPWMs, name = "Vierstra")
-projHeart <- addDeviationsMatrix(ArchRProj = projHeart, peakAnnotation = "Vierstra", force = T)
+projHeart <- addMotifAnnotations(projHeart, name = "Motif")
+projHeart <- addDeviationsMatrix(ArchRProj = projHeart, peakAnnotation = "Motif", force = T)
 
 # Co-accessibility
 satac <- addCoAccessibility(ArchRProj = satac, reducedDims = 'harmony', maxDist = 1e6)
