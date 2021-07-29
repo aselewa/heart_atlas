@@ -2,8 +2,8 @@ library(tidyverse)
 library(rtracklayer)
 library(GenomicRanges)
 
-#gtf.file <- '/project2/gca/software/annotations/gencode.v19.annotation.gtf.gz'
-gtf.file <- '/project2/xinhe/shared_data/gencode/gencode.v35.GRCh38.gtf.gz'
+gtf.file <- '/project2/gca/software/annotations/gencode.v19.annotation.gtf.gz'
+#gtf.file <- '/project2/xinhe/shared_data/gencode/gencode.v35.GRCh38.gtf.gz'
 
 my.gtf <- rtracklayer::import(con = gtf.file, format = 'gtf')
 seqlevels(my.gtf, pruning.mode = "coarse") <- paste0("chr",1:22)
@@ -25,8 +25,11 @@ canoncial.transcripts.str <- canonical.transcripts %>% .$transcript_id
 my.gtf.protein.canonical <- my.gtf.protein[my.gtf.protein$transcript_id %in% canoncial.transcripts.str,] # keep only canonical transcripts
 my.exons <- my.gtf.protein.canonical[my.gtf.protein.canonical$type=="exon",]
 my.UTR <- my.gtf.protein.canonical[my.gtf.protein.canonical$type=="UTR",]
-my.introns <- GenomicRanges::setdiff(my.genes, my.exons)
 
+my.introns <- GenomicRanges::setdiff(my.genes, my.exons)
+introns.gene.overlap <- findOverlaps(my.genes, my.introns)
+my.introns <- my.introns[subjectHits(introns.gene.overlap),]
+my.introns$gene_name <- my.genes$gene_name[queryHits(introns.gene.overlap)]
 
 my.genes.plus <- my.genes[strand(my.genes)=="+",]
 my.genes.neg <- my.genes[strand(my.genes)=="-",]
@@ -49,4 +52,4 @@ annots <- list(
     splice_junctions = my.splice.junc
 )
 
-saveRDS(annots, 'hg38_gtf_genomic_annots.gr.rds')
+saveRDS(annots, 'genomic_annotations/hg19_gtf_genomic_annots.gr.rds')

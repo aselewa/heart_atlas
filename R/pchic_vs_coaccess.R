@@ -14,12 +14,12 @@ promoter.coacc <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coa
     dplyr::select(promoter_chr, promoter_start, promoter_end, idx)
 coacc.df <- enhancer.coaccess %>% inner_join(., promoter.coacc, on = 'idx')
 
-pchic.enhancer.gr <- readRDS('HiC/iPSC_CM_pcHiC_all_Hg19.gr.rds')
+pchic.enhancer.gr <- readRDS('HiC/iPSC_CM_pcHiC_protein_Hg19.gr.rds')
 pchic.promoter <- GRanges(seqnames = pchic.enhancer.gr$promoter_chr, ranges = IRanges(start = pchic.enhancer.gr$promoter_start, end = pchic.enhancer.gr$promoter_end),
                            sample = pchic.enhancer.gr$sample)
 
-cor.cutoffs <- list("<0"=c(-0.01,0), "0-0.05"=c(0,0.01), "0.05-0.1"=c(0.01, 0.1), "0.1-0.2"=c(0.1, 0.2), "0.2+"=c(0.2,1))
-dist.cutoffs <- c(50, seq(100, 500, 50))*1000
+cor.cutoffs <- list("<0.1"=c(-0.01,0.1), "0.1-0.2"=c(0.1, 0.2), "0.2-0.4"=c(0.2,0.4),"0.4+"=c(0.4,1))
+dist.cutoffs <- c(0, seq(100, 500, 100))*1000
 res <- list()
 overlap.list <- list()
 
@@ -73,9 +73,9 @@ ggplot(res.df, aes(x = dist.bin/1000, y = overlap, color=corr.bin)) +
     geom_point() + 
     geom_line() + 
     ggClean() + 
-    xlab('Distance b/w peaks (kb)') + 
+    xlab('Distance b/w enhancer-promoter') + 
     ylab('Prop. of Coaccessible Peaks in PC HiC') + 
-    scale_color_manual(values = c("black", brewer.pal(n = 6, name = "Blues")[2:6]))
+    scale_color_manual(values = c("black","mediumpurple1","royalblue1","skyblue3"))
 dev.off()
 
 base.line <- res$`<0`
@@ -93,43 +93,3 @@ pdf('manuscript_figures/coacc_CMs_corr10_in_pcHiC.pdf', width=10, height=8)
 ggplot(prop.df, aes(x = sample, y = overlap, fill=type)) + geom_bar(stat = 'identity', position = 'dodge') + ylab('Proportion of Co-access Links in PC HiC') +
     scale_fill_brewer(palette = "Set2") + ggClean()
 dev.off()
-
-
-
-
-
-
-
-hic.coacc.overlap <- rep(0, 3)
-overlap.list <- list()
-cutoffs <- c(5, 7, 10, 20, 1000)
-for(j in 1:(length(cutoffs)-1)){
-    for(i in 1:3){
-        
-            bol <- pchic.enhancer.gr$score > cutoffs[j] & pchic.enhancer.gr$score <= cutoffs[j+1]
-            curr.samp.enhancer <- pchic.enhancer.gr[pchic.enhancer.gr$sample==i & bol,]
-            curr.samp.promoter <- pchic.promoter[pchic.promoter$sample==i & bol,]
-            
-            enhancer.hits <- GenomicRanges::findOverlaps(query = curr.samp.enhancer, subject = enhancer.coacc.gr, maxgap = 2500)
-            promoter.hits <- GenomicRanges::findOverlaps(query = curr.samp.promoter, subject = promoter.coacc.gr, maxgap = 2500)
-            
-            ehits.str <- paste0(queryHits(enhancer.hits),'-',subjectHits(enhancer.hits))
-            phits.str <- paste0(queryHits(promoter.hits),'-',subjectHits(promoter.hits))
-            
-            hic.coacc.overlap[i] <- length(intersect(ehits.str, phits.str))/length(curr.samp.enhancer)
-            
-    }
-    overlap.list[[j]] <- hic.coacc.overlap
-}
-
-labs <- c("5-7","8-10","11-20","20+")
-hic.coacc.overlap.df <- data.frame(overlaps = unlist(overlap.list), 
-                                   pcHiC_Score = factor(rep(labs, each = 3), levels = labs),
-                                   rep = rep(c(1,2,3), length(overlap.list)))
-
-pdf('manuscript_figures/pcHiC_in_coacc.pdf', width=8, height=6)
-ggplot(hic.coacc.overlap.df, aes(x = rep, y = overlaps, fill=pcHiC_Score)) + geom_bar(stat = 'identity', position = 'dodge') + 
-    ylab('Proportion of PC HiC in Coaccess') +
-    scale_fill_brewer(palette = "Set2") + ggClean()
-dev.off()
-

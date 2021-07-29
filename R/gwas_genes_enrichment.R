@@ -11,21 +11,23 @@ gene.annots <- readRDS('genomic_annotations/hg19_gtf_genomic_annots.gr.rds')
 genes <- gene.annots$genes
 
 diff.exp.res <- readRDS('seurat/diff_expr_markers.df.rds')
-finemap.res <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_06152021.tble.rds')
+finemap.res <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07222021.gr.rds')
 
-high.pip.snps <- finemap.res %>% distinct(snp, .keep_all=TRUE) %>% group_by(locus) %>% arrange(-pip) %>% slice(1)
+high.pip.snps <- finemap.res %>% distinct(snp, .keep_all=TRUE) %>% group_by(locus) %>% arrange(-pip) %>% dplyr::slice(1)
 high.pip.snp.gr <- GRanges(seqnames = paste0("chr",high.pip.snps$chr), ranges = IRanges(start = high.pip.snps$pos, end = high.pip.snps$pos))
+gene.view <- read_csv('GWAS/aFib_Finemapped_GenePIP_0.1_ActiveProm_07222021.csv')
+top.pip.genes <- gene.view$gene_name[gene.view$gene_pip > 0.5]
 
-top.pip.genes <- unique(finemap.res$gene_name[finemap.res$gene_pip >= 0.5])
+# enrichment of GWAS genes among diff exp genes
 hits <- findOverlaps(high.pip.snp.gr, genes, maxgap = 250000)
 control.genes <- unique(genes$gene_name[subjectHits(hits)])
 
 cell.types <- unique(diff.exp.res$cluster)
 top.pip.genes.overlap <- sapply(cell.types, function(x){
-    length(intersect(diff.exp.res$gene[diff.exp.res$cluster==x], top.pip.genes))/length(top.pip.genes)})
+  length(intersect(diff.exp.res$gene[diff.exp.res$cluster==x], top.pip.genes))/length(top.pip.genes)})
 
 control.genes.overlap <- sapply(cell.types, function(x){
-    length(intersect(diff.exp.res$gene[diff.exp.res$cluster==x], control.genes))/length(control.genes)})
+  length(intersect(diff.exp.res$gene[diff.exp.res$cluster==x], control.genes))/length(control.genes)})
 
 compare.overlap.df <- data.frame(prop = c(top.pip.genes.overlap, control.genes.overlap), 
                                  celltype = as.character(cell.types),
@@ -35,10 +37,10 @@ compare.overlap.df <- compare.overlap.df[compare.overlap.df$celltype %in% c("Car
 
 pdf('manuscript_figures/GWAS_Genes_Control.pdf',width=8, height=6)
 ggplot(compare.overlap.df, aes(x=celltype, y=prop, fill=gene_type)) + geom_bar(stat='identity', position='dodge', width = 0.7) + ggClean(rotate_axis = T) +
-    xlab('') + ylab('Prop. Genes Differentially Expressed') + scale_fill_brewer(palette = "Paired")
+  xlab('') + ylab('Prop. Genes Differentially Expressed') + scale_fill_brewer(palette = "Paired")
 dev.off()
 
-
+# control vs. high pip TP10k 
 avg.exp.mat.top.pip <- avg.exp.mat[intersect(rownames(avg.exp.mat), top.pip.genes),]
 avg.exp.mat.top.pip <- pivot_longer(data = avg.exp.mat.top.pip, cols = everything())
 avg.exp.mat.top.pip$gene_type <- "PIP>0.5"
@@ -50,7 +52,35 @@ avg.exp.mat.control$gene_type <- "Control"
 exp.compare.df <- bind_rows(avg.exp.mat.top.pip,avg.exp.mat.control)
 exp.compare.df$value[exp.compare.df$value > 3] <- 3
 
-ggplot(exp.compare.df, aes(x=name, y=value, fill=gene_type)) + geom_boxplot(outlier.size = 0.5) + ggClean(rotate_axis = T) + 
-    xlab('') + ylab('log2 TP10k')
+exp.compare.df <- exp.compare.df[exp.compare.df$name == "Cardiomyocyte",]
 
+pdf('manuscript_figures/GWAS_CM_genes_vs_control_tpm.pdf', width=4, height=5)
+ggplot(exp.compare.df, aes(x=gene_type, y=value, fill=gene_type)) + geom_boxplot(outlier.size = 0.5) + ggClean(rotate_axis = T) + 
+  xlab('') + ylab('log2 TP10k') + LegendOff()
+dev.off()
+
+
+# enrichment in OMIM genes
+final.mat <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07222021.gr.rds')
+all.genes.pips <- final.mat %>% group_by(gene_name) %>% slice(1)
+
+bks <- c(0,0.1,0.5,10)
+labs <- c("<10%","11%-50%",">50%")
+bin.count <- cut(all.genes.pips$gene_pip, breaks = bks, labels = labs)
+all.genes.pips$gene_pip_bin <- bin.count
+
+omim.genes <- read_tsv('OMIM_GENES_cardiac_arryhthmia_OR_conduction_defect.txt', col_names = F)
+colnames(omim.genes) <- c("code","description","gene")
+
+omim.overlap <- all.genes.pips %>% 
+  group_by(gene_pip_bin) %>% 
+  summarise(prop_omim = length(intersect(gene_name, omim.genes$gene))/n())
+
+pdf('manuscript_figures/OMIM_genes_proportion.pdf', width=5, height=5)
+ggplot(omim.overlap, aes(x=gene_pip_bin, y=prop_omim*100)) + 
+  geom_bar(stat='identity', fill='lightblue') + 
+  ggClean() + 
+  ylab('% OMIM') +
+  xlab('Gene PIP Bin')
+dev.off()
 

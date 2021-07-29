@@ -1,18 +1,14 @@
 library(ArchR)
 library(tidyverse)
 require(plyranges)
-library(Gviz)
-library(GenomicInteractions)
 
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 palette <- readRDS('notebooks/palette.rds')
 source('R/analysis_utils.R')
-source('R/track_plotter.R')
 
 
-# load a bunch of stuff
+# load some basics before figures
 satac <- suppressMessages(loadArchRProject('ArchR/ArchR_heart_latest_noAtrium/'))
-srna <- readRDS('seurat/Heart_RNA_Processed_Combined_NoAtrium.rds')
 
 peaks <- getPeakSet(satac)
 peaks$peakID <- GRToString(peaks)
@@ -22,21 +18,17 @@ peak.markers <- readRDS('ArchR/ArchR_heart_latest_noAtrium/PeakCalls/DA_MARKERS_
 genomic.annots <- readRDS('genomic_annotations/hg38_gtf_genomic_annots.gr.rds')
 gene.annots <- genomic.annots$genes
 
-#annotate all peaks with DA test results
+### annotate all peaks with DA test results
 celltype_ideal_order <- c("Cardiomyocyte","Smooth Muscle","Pericyte","Endothelial","Fibroblast","Neuronal", "Lymphoid","Myeloid")
 peak.markers <- lapply(celltype_ideal_order, function(x){peak.markers[[x]]})
 names(peak.markers) <- celltype_ideal_order
 peak.markers.str <- unlist(lapply(peak.markers, function(x){GRToString(x)}), use.names = F)
 peaks.celltypes <- data.frame(peakID=peak.markers.str, cellType = factor(rep(names(peak.markers), lengths(peak.markers)), levels = names(peak.markers)))
 
-peak.info.df <- peaks %>% as_tibble() %>% left_join(., peaks.celltypes, on = "peakID") %>% dplyr::select(peakID, peakType, nearestGene, distToGeneStart, cellType)
-levels(peak.info.df$cellType) <- c(levels(peak.info.df$cellType), "Shared")
-peak.info.df$cellType[is.na(peak.info.df$cellType)] <- "Shared"
-
-# accessibility with gene promoters
+### load co-accessibility results
 enhancer.coacc <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coacc_ENHANCERS_AllCellTypes_overlapCutoff50_k200_corr_cut_-1_maxDist_1Mb_hg38.gr.rds')
 enhancer.coacc <- enhancer.coacc[enhancer.coacc$correlation > 0.5,]
-
+ 
 enhancer.coacc.tbl <- enhancer.coacc %>% 
     as_tibble() %>%  
     dplyr::select(peakID, coacc_gene_name, correlation, distToCoaccGene) %>%
@@ -108,8 +100,8 @@ dev.off()
 # 
 gene.annots.tbl <- gene.annots %>% as_tibble() %>% select(seqnames, start, end, gene_name) %>% mutate(gene_length = end-start) %>% dplyr::rename(coacc_gene_name = gene_name)
 
-bks <- c(0, 2, 20, 10000)
-labs <- c("<=2", "3-20","20+")
+bks <- c(0, 2, 50, 10000)
+labs <- c("<=2", "3-50","50+")
 npeaks.per.gene.length <- left_join(npeaks.per.gene, gene.annots.tbl, on="coacc_gene_name") %>%
     mutate(nGenes = cut(peakCount, breaks = bks, labels = labs))
 

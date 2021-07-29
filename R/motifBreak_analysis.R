@@ -6,7 +6,8 @@ library(tidyverse)
 
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 
-finemapped.res <- readr::read_csv('GWAS/aFib_Finemapped_minPIP_0.2_03252021.csv')
+finemapped.res <- readr::read_csv('GWAS/aFib_Finemapped_minPIP_0.2_06252021.csv')
+
 #finemapped.res <- finemapped.res %>% filter(`Chromatin status` == 'CM Specific ATAC' | `Chromatin status` == 'CM Shared ATAC')
 
 variants <- snps.from.rsid(rsid = finemapped.res$SNP,
@@ -16,19 +17,15 @@ variants <- snps.from.rsid(rsid = finemapped.res$SNP,
 drops <- c("rs3731746:T","rs60632610:A","rs60632610:G")
 variants <- variants[!(names(variants) %in% drops),]
 
-chroms <- sapply(strsplit(curr, split = ':'), function(x){x[1]})
-pos <- as.integer(sapply(strsplit(curr, split = ':'), function(x){x[2]}))
-finemapped.res <- finemapped.res %>% left_join(., variants %>% as_tibble %>% dplyr::select(SNP_id, REF, ALT) %>% rename(SNP = SNP_id))
-
 #motifs.of.interest <- c("TBX5", "GATA4", "NKX2-5", "PITX2", "MEF2A","MEF2C", "TEAD1", "PRRX1", "HAND2", "ETV1", "NR2F2")
-motif.cor.res <- read_tsv('manuscript_figures/figure2/All_TFMotif_Expression_Correlations_CisBP.tsv')
-cardiac.tfs <- motif.cor.res$gene_name[motif.cor.res$correlation > 0.4]
-cardiac.tfs <- c(cardiac.tfs, "NKX2-5","PRRX1")
+important.tfs.summary <- read_tsv('TF_Correlation_Results/Final_TFs_summary_06272021.tsv')
+cardiac.tfs <- unique(important.tfs.summary$gene_name)
 
 res <- query(MotifDb, andStrings = c("hsapiens"), orStrings = cardiac.tfs)
 res <- res[!duplicated(mcols(res)$geneSymbol)]
 res <- res[mcols(res)$geneSymbol %in% cardiac.tfs,]
 
+# add hand2 PWM since its not available in existing databse
 hand2.pwm <- read.table('misc/HAND2_motif.txt', sep = '')
 colnames(hand2.pwm) <- seq(1:10)
 rownames(hand2.pwm) <- c("A","C","G","T")
@@ -45,8 +42,9 @@ motif.breaks <- motifbreakR(snpList = variants,
                             bkg = c(A=0.25, C=0.25, G=0.25, T=0.25), 
                             BPPARAM = BiocParallel::MulticoreParam(workers = 16))
 
-saveRDS(motif.breaks, 'misc/cardiac_tf_motifbreakR_analysis_CM.gr.rds')
+saveRDS(motif.breaks, 'motifbreakR_Results/motifbreakR_cardiac_TFs_PIP20_06272021.rds')
 
+motif.breaks <- motif.breaks[motif.breaks$effect != "neut",]
 motif.breaks.tbl <- motif.breaks %>% as_tibble() %>% distinct(SNP_id, geneSymbol, .keep_all = T) %>% dplyr::select(SNP_id, geneSymbol, effect) %>%
     mutate(tf.info = paste0(geneSymbol," - ", effect)) %>% dplyr::select(-geneSymbol, -effect) %>% dplyr::rename(SNP = SNP_id) %>%
     group_by(SNP) %>% summarise(tf.info = paste0(tf.info, collapse=','))

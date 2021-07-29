@@ -2,12 +2,8 @@ setwd('/project2/gca/aselewa/heart_atlas_project/')
 
 library(tidyverse)
 
-# gwas <- readRDS('GWAS/summary_statistics/aFib/ebi-a-GCST006414_aFib.df.rds')
-# gwas <- gwas[gwas$pval>1,]
-# gwas$pval[gwas$pval > 50] <- 50
-# gwas$pos_kb <- gwas$pos/1e3
 
-finemap.genes <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
+finemap.genes <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07242021.gr.rds')
 genomic.annots <- readRDS('genomic_annotations/hg19_gtf_genomic_annots.gr.rds')
 gene.cords <- genomic.annots$genes
 gene.cords$chr <- as.integer(sub("chr", "", as.character(seqnames(gene.cords))))
@@ -47,12 +43,12 @@ don <- full.gene.pip.summary %>%
 
 axisdf <- don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
 
-pdf(file = 'manuscript_figures/Fig5D_gene_manhattan.pdf', width = 12, height=6)
+pdf(file = 'manuscript_figures/Fig5D_gene_manhattan.pdf', width = 14, height=10)
 
 ggplot(don, aes(x=BPcum, y=gene_pip)) +
   
   # Show all points
-  ggrastr::geom_point_rast( aes(color=as.factor(chr)), size=2) +
+  ggrastr::geom_point_rast( aes(color=as.factor(chr)), size=3) +
   scale_color_manual(values = rep(c("grey", "skyblue"), 22 )) +
   
   # custom X axis:
@@ -61,10 +57,15 @@ ggplot(don, aes(x=BPcum, y=gene_pip)) +
   scale_y_continuous(expand = c(0, 0), limits = c(0,1.25)) +     # remove space between plot area and x axis
   
   # Add highlighted points
-  ggrastr::geom_point_rast(data=subset(don, is_highlight==T), color="orange", size=2) +
+  ggrastr::geom_point_rast(data=subset(don, is_highlight==T), color="orange", size=3) +
   
   # Add label using ggrepel to avoid overlapping
-  ggrepel::geom_label_repel( data=subset(don, is_highlight==T), aes(label=gene_name), size=4, min.segment.length = 0) +
+  ggrepel::geom_label_repel( data=subset(don, is_highlight==T), 
+                             aes(label=gene_name), 
+                             size=6, 
+                             min.segment.length = 0, 
+                             label.size = NA,
+                             fill = alpha(c("white"),0)) +
   
   # Custom the theme:
   theme_bw() +

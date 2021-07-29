@@ -2,7 +2,7 @@ library(tidyverse)
 library(ArchR)
 setwd('/project2/gca/aselewa/heart_atlas_project/')
 #fine-mapping results
-final.mat <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_06152021.tble.rds')
+final.mat <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_06262021.tble.rds')
 high.conf.snp.df <- final.mat %>% 
     dplyr::filter(pip > 0.5) %>% 
     group_by(snp) %>% 

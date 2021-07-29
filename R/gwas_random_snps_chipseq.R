@@ -7,7 +7,7 @@ peak.set.hg19 <- hg38ToHg19(peak.set)
 seqlevelsStyle(peak.set.hg19) <- "NCBI"
 
 #hg19
-finemap.res <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
+finemap.res <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07222021.gr.rds')
 finemap.res <- finemap.res[!duplicated(finemap.res$snp),]
 high.pip.snps <- finemap.res[finemap.res$pip>0.5,]
 low.pip.snps <- finemap.res[finemap.res$pip<0.01,]

@@ -4,8 +4,11 @@ library(RColorBrewer)
 library(GenomicRanges)
 library(liftOver)
 library(dplyr)
+library(Gviz)
+library(tidyverse)
 
 ideal_order <- c("Cardiomyocyte","Smooth Muscle","Pericyte","Endothelial","Fibroblast","Neuronal", "Lymphoid","Myeloid")
+palette <- readRDS('/project2/gca/aselewa/heart_atlas_project/notebooks/palette.rds')
 
 get_density <- function(x, y, ...) {
   dens <- MASS::kde2d(x, y, ...)
@@ -291,4 +294,30 @@ prop_overlap_links <- function(X_e, X_p, Y_e, Y_p){
     ehitsIn <- unique(ehitsIn)
     
     length(ehitsIn)/length(X_e)
+}
+
+
+# only requires the region of interest
+knownGeneObject <- function(curr.locus.gr, genome){
+    
+    ga.track <- GenomeAxisTrack()
+    if(genome == "hg19"){
+        txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene
+    }
+    if(genome == "hg38"){
+        txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene::TxDb.Hsapiens.UCSC.hg38.knownGene
+    }
+    
+    grtrack <- GeneRegionTrack(range = txdb, 
+                               genome = "hg19", 
+                               chromosome = as.character(seqnames(curr.locus.gr)),
+                               start = start(curr.locus.gr),
+                               end = end(curr.locus.gr), name = "Genes")
+    
+    symbol(grtrack) <- mapIds(org.Hs.eg.db::org.Hs.eg.db, 
+                              keys=sub("\\.\\d+$", "", gene(grtrack)), 
+                              keytype="ENTREZID", column="SYMBOL")
+    
+    symbol(grtrack) <- ifelse(is.na(symbol(grtrack)), gene(grtrack), symbol(grtrack))
+    return(grtrack)
 }

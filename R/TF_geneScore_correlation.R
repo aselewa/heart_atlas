@@ -4,7 +4,7 @@ setwd('/project2/gca/aselewa/heart_atlas_project/')
 source('R/analysis_utils.R')
 source_overlapCNN()
 
-KNN = 100
+KNN <- 100
 
 satac <- loadArchRProject('ArchR/ArchR_heart_latest_noAtrium/')
 rD <- getReducedDims(ArchRProj = satac, reducedDims = 'harmony', corCutOff = 0.75)
@@ -57,7 +57,7 @@ for(i in 1:length(same.genes)){
 }
 
 gene.score.cor <- data.frame(gene_name = rownames(geneScore.mat), GeneScore_Correlation=cor.res)
-gene.score.cor %>% write_tsv('manuscript_figures/figure2/All_TFMotif_GeneScore_Correlations_CisBP.tsv')
+gene.score.cor %>% write_tsv('TF_Correlation_Results/All_TFMotif_GeneScore_Correlations_CisBP.tsv')
 
 plot(geneScore.mat["MEF2A",], motif.mat["MEF2A",], xlab='log2 Gene Score', ylab='chromVar Motif Z-score', main='MEF2A')
 

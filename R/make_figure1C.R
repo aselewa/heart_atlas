@@ -76,17 +76,3 @@ dev.off()
 
 
 
-
-p <- ArchR::plotBrowserTrack(
-    ArchRProj = satac,
-    plotSummary = c("bulkTrack", "scTrack","geneTrack"),
-    sizes = c(1,1,0.5),
-    groupBy = "agg",
-    tileSize = 500,
-    geneSymbol = "TNNT2", 
-    upstream = 60000, 
-    scCellsMax = 300,
-    downstream = 20000,pal = "black"
-)
-plotPDF(p, ArchRProj = satac)
-

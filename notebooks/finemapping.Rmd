@@ -5,8 +5,6 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(liftOver)
-library(ComplexHeatmap)
 source('/project2/gca/aselewa/heart_atlas_project/R/analysis_utils.R')
 ```
 
@@ -124,7 +122,7 @@ ggplot(bin.count.df, aes(x = group, y=interval_size, fill=Size)) +
 ```{r}
 sumstat.annot <- finemappeR::annotator(gwas = prior_res, annotations = list.files('../GWAS/annotations_for_finemapping_hg19/', '*.bed', full.names = T))
 annots <- rep("Unannotated", nrow(sumstat.annot))
-annots[sumstat.annot$all_eqtls_hg19.bed_d>0] <- "Other" #CHANGE BACK to eQTLs
+annots[sumstat.annot$all_eqtls_hg19.bed_d>0] <- "Other"
 annots[sumstat.annot$Coding_UCSC.bed_d>0] <- "Other"
 annots[sumstat.annot$Conserved_LindbladToh.bed_d>0] <- "Other"
 annots[sumstat.annot$CM_shared_peaks_hg19.bed_d>0] <- "CM Shared ATAC"
@@ -162,82 +160,87 @@ finemap.gr$pip <- prior_res$susie_pip
 finemap.gr$chr <- prior_res$chr
 finemap.gr$pos <- prior_res$pos
 finemap.gr$locus <- prior_res$locus
+finemap.gr$ref <- prior_res$a0
+finemap.gr$alt <- prior_res$a1
 seqlevelsStyle(finemap.gr) <- "UCSC"
 finemap.gr <- finemap.gr[finemap.gr$pip > 1e-5, ]
+final.gr.og <- finemap.gr
 ```
 
 load annotations for linking SNPs to genes (run `clean_genomic.annotations.R` to produce)
 
 ```{r}
-genomic.annots <- readRDS('../genomic_annotations/hg19_gtf_genomic_annots.gr.rds')
+genomic.annots <- readRDS('../genomic_annotations/GWAS_gene_mapping_annots_hg19.gr.rds')
 gene.annots <- genomic.annots$genes
-genomic.annots$genes <- NULL
-genomic.annots$introns <- NULL
-splice.juncs <- genomic.annots$splice_junctions
-genomic.annots$splice_junctions <- NULL
-```
 
-Download Hi-C data from https://www.ebi.ac.uk/arrayexpress/experiments/E-MTAB-6014/ and convert the dataframe into a GRanges object.
+exons_active_promoters <- list(exons=genomic.annots$exons, active.promoters=genomic.annots$active.promoters)
+enhancer_loops <- list(pcHiC=genomic.annots$HiC, coacc=genomic.annots$coacc, nearby_20kb=genomic.annots$enhancer_nearby_promoter_20kb)
+intron_utrs <- list(introns=genomic.annots$introns, UTRs=genomic.annots$UTRs)
 
-```{r}
-genomic.annots$HiC <- readRDS('../HiC/iPSC_CM_pcHiC_protein_Hg19.gr.rds')
-```
-
-Add co-accessibility by running the script `R/prepare_Coaccessibility.R` and load it here
-
-```{r}
-coaccess <- readRDS('../ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coacc_ENHANCERS_AllCellTypes_overlapCutoff50_k200_corr_cut_-1_maxDist_1Mb_hg19.gr.rds')
-coaccess <- coaccess[coaccess$correlation>0.2,]
-genomic.annots$coacc <- coaccess
+gene_by_distance <- function(snp.gr, promoters.gr){
+  res <- plyranges::join_overlap_inner(x = promoters.gr, 
+                                       y = snp.gr, maxgap = 1e6) # get all promoters within 1MB
+  
+  res$distance <- abs(res$pos - end(res))
+  res$weight <- exp(-res$distance / 1e5)
+  
+  res
+}
 ```
 
 Overlap finemapped SNPs with each of our annotations
 
 ```{r}
-# Heirarchy level 1: HiC, CoAccess, exon, promoter, UTR
-snps.overlap.annots <- GRangesList(lapply(genomic.annots, function(x) { plyranges::join_overlap_inner(x = x, y = finemap.gr) }))
-snps.in <- unique(unlist(snps.overlap.annots)$snp)
-snps.unassigned.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in),]
+plyrange_overlap <- function(x, y){
+  plyranges::join_overlap_inner(x = x, y = y)
+}
 
-# Heirarchy level 2: splice junction
-snps.overlap.annots$splice_junction <- plyranges::join_overlap_inner(x = splice.juncs, y = snps.unassigned.gr)
-snps.in <- unique(unlist(snps.overlap.annots)$snp)
-snps.unassigned.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in),]
+# Heirarchy level 1: exons and active promoters
+exons_active_promoters_overlap <- lapply(exons_active_promoters, function(x){plyrange_overlap(x, finemap.gr)})
+snps.in <- unique(unlist(GRangesList(exons_active_promoters_overlap))$snp)
+finemap.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in),]
 
-# Heirarchy level 3: intron/intragenic
-res <- plyranges::join_overlap_inner(x = genomic.annots$promoters, 
-                                     y = snps.unassigned.gr, maxgap = 1e6) # get all promoters within 1MB
+# Heirarchy level 2: enhancer loops
+enhancer_loops_overlap <- lapply(enhancer_loops, function(x){plyrange_overlap(x, finemap.gr)})
+snps.in <- unique(unlist(GRangesList(enhancer_loops_overlap))$snp)
+finemap.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in),]
 
-res$distance <- abs(res$pos - end(res))
-res$weight <- exp(-res$distance / 1e5)
+# Heirarchy level 3: enhancer-distance
+snps.in.OCRs <- subsetByOverlaps(finemap.gr, genomic.annots$OCRs_hg19)
+enhancer_snps_genes_by_distance <- list(enhancer_distance = gene_by_distance(snp.gr = snps.in.OCRs, promoters.gr = genomic.annots$promoters))
+finemap.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in.OCRs$snp),]
 
-snps.overlap.annots$intronic <- res
+# Heirarchy level 4: introns/UTRs
+intron_utr_overlap <- lapply(intron_utrs, function(x){plyrange_overlap(x, finemap.gr)})
+snps.in <- unique(unlist(GRangesList(intron_utr_overlap))$snp)
+finemap.gr <- finemap.gr[!(finemap.gr$snp %in% snps.in),]
+
+# Heirarchy level 5: intergenic
+intergenic_snps_genes_by_distance <-  list(intergenic=gene_by_distance(snp.gr = finemap.gr, promoters.gr = genomic.annots$promoters))
+
+snp.overlap.list <- c(exons_active_promoters_overlap, enhancer_loops_overlap, enhancer_snps_genes_by_distance, intron_utr_overlap, intergenic_snps_genes_by_distance)
 ```
 
 ```{r}
-categories <- names(snps.overlap.annots)
-mat.list <- list()
+cols.to.keep <- c("snp","chr","pos","ref","alt","locus","pip","gene_name", "category", "weight")
 
-for(c in categories){
-  curr <- snps.overlap.annots[[c]]@elementMetadata %>% as_tibble()
-  if(c == "intronic"){
-    curr <- curr[,c("snp","chr", "pos","locus","pip","gene_name", "weight")] %>% mutate(category = "distance")
-  }
-  else if(c == "splice_junction"){
-    curr <- curr[,c("snp","chr", "pos","locus","pip","gene_name", "weight")] %>% mutate(category = "splice_junction", weight=0.5)
-  }
-  else{
-    curr <- curr[,c("snp","chr", "pos","locus","pip","gene_name", "weight")] %>% mutate(category = c, weight = 1*(pip>0))
-  }
-  mat.list[[c]] <- curr
-} 
+mat.list <- lapply(names(snp.overlap.list), function(x){
+  snp.overlap.list[[x]] %>% 
+    as_tibble() %>% 
+    mutate(category = x) %>% 
+    distinct(gene_name, snp, category, .keep_all = T)
+})
 
-final.mat <- Reduce(rbind, mat.list) %>% distinct(gene_name, snp, pip, .keep_all = TRUE)
+final.mat <- Reduce(bind_rows, mat.list) %>% dplyr::select(cols.to.keep)
+final.mat$weight <- ifelse(final.mat$category %in% c("exons","active.promoters","pcHiC","coacc","nearby_20kb","introns","UTRs"), 1, final.mat$weight)
 ```
 
 ```{r}
-final.mat <- final.mat %>% group_by(snp) %>% mutate(frac_pip = weight/sum(weight))
-final.mat <- final.mat %>% group_by(gene_name) %>% mutate(gene_pip = sum(pip * frac_pip)) %>% arrange(gene_name)
+final.mat.col <- final.mat %>% distinct(snp, gene_name, .keep_all = T) %>% group_by(snp) %>% mutate(frac_pip = weight/sum(weight))
+final.mat.col <- final.mat.col %>% group_by(gene_name) %>% mutate(gene_pip = sum(pip * frac_pip)) %>% arrange(gene_name)
+final.mat.col <- final.mat.col[,c("snp", "gene_name", "frac_pip","gene_pip")]
+
+final.mat <- final.mat %>% left_join(., final.mat.col)
 
 snp.annots <- data.frame(snp=prior_res$snp, annots=annots)
 final.mat <- dplyr::left_join(x = final.mat, y = snp.annots, by = "snp")
@@ -245,25 +248,21 @@ final.mat <- final.mat[!is.na(final.mat$gene_name),]
 ```
 
 ```{r}
-saveRDS(final.mat, '../GWAS/finemapping/aFib_Finemapped_GeneMapped_06152021.tble.rds')
+saveRDS(final.mat, '../GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07242021.gr.rds')
 ```
 
 ### prepare tables for experimental verification
 
 ```{r}
 gene.view.df <- final.mat %>% 
-    dplyr::select(locus, gene_name, gene_pip, pip) %>% 
+    dplyr::select(locus, gene_name, gene_pip, pip, frac_pip) %>% 
     group_by(locus, gene_name) %>% 
-    summarise(gene_pip = round(gene_pip[1], 3), n_snps = sum(pip > 0.01)) %>% 
+    summarise(gene_pip = round(gene_pip[1], 3), n_snps_frac_pip_5percent = sum((frac_pip*pip) > 0.05)) %>% 
     filter(gene_pip > 0.1) %>%
-    readr::write_csv('../GWAS/aFib_Finemapped_GenePIP_0.1_06152021.csv')
+    readr::write_csv('../GWAS/aFib_Finemapped_GenePIP_0.1_ActiveProm_07242021.csv')
     
-
-high.conf.snp.df <- final.mat %>% 
-    dplyr::filter(pip > 0.2) %>% 
-    group_by(snp) %>% 
-    arrange(-gene_pip) %>% 
-    dplyr::slice(1) 
+final.mat$fractional_PIP <- final.mat$pip * final.mat$frac_pip
+high.conf.snp.df <- final.mat[final.mat$fractional_PIP > 0.02,]
 ```
 
 ```{r}
@@ -282,9 +281,9 @@ I downloaded ALL H3K27ac bed files from Encode for Aorta, Heart LV/RV/RA, and ca
 
 ```{r}
 seqlevelsStyle(finemap.gr) <- "NCBI"
-files <- list.files(path = '../ENCODE/H3k27ac_gwas_hg19/hg19_mapped', pattern = '*.bed', full.names = T)
-files <- c(files, '../ENCODE/H3k27ac_gwas_hg19/FetalHeart_E083-DNase_hg19_cleaned_narrowPeak.bed.gz', '../ENCODE/FGT_ChIP_lifted_from_mm10.bed')
-z <- lapply(files, function(x){rtracklayer::import(x)})
+files <- c('../ENCODE/H3k27ac_gwas_hg19/hg19_mapped/H3K27ac_heart_concat.bed', 
+           '../ENCODE/H3k27ac_gwas_hg19/FetalHeart_E083-DNase_hg19_cleaned_narrowPeak.bed.gz', 
+           '../ENCODE/FGT_ChIP_lifted_from_mm10.bed')
 annotated.snps <- lapply(files, function(x){get_elements_overlap_snps(snp.gr = finemap.gr, annotations = x)})
 ```
 
@@ -294,17 +293,72 @@ for(i in 1:length(annotated.snps)){
 }
 ```
 
+Add GTEx v8 eQTL data (Run R/prepare_eQTL_for_gwas_overlap.R to prepare)
+
+```{r}
+eqtls.gr.hg19 <- readRDS('../misc/V8_Signif_eQTLs_lifted_hg19.rds')
+eqtls.gr.hg19.df <- eqtls.gr.hg19 %>% 
+  as_tibble() %>% 
+  mutate(varID = paste0(seqnames,'_',start)) %>% 
+  filter(!is.na(Symbol)) %>%
+  dplyr::select(varID, Symbol) %>% 
+  dplyr::rename(eQTL_Symbol=Symbol) %>%
+  group_by(varID) %>% 
+  summarise(eQTL_Symbols=paste0(eQTL_Symbol, collapse=';'))
+
+
+high.conf.snp.df <- high.conf.snp.df %>% mutate(varID = paste0(chr,'_',pos)) %>% left_join(., eqtls.gr.hg19.df) %>% dplyr::select(-varID)
+```
+
+Add TF disruption annotations
+
+```{r}
+motifbreakr.res <- readRDS('../motifbreakR_Results/motifbreakR_cardiac_TFs_PIP20_06272021.rds')
+
+motif.breaks <- motifbreakr.res[motifbreakr.res$effect == "strong",]
+motif.breaks.tbl <- motif.breaks %>% 
+  as_tibble() %>% 
+  distinct(SNP_id, geneSymbol, .keep_all = T) %>% 
+  dplyr::select(SNP_id, geneSymbol, effect) %>%
+    mutate(tf.info = paste0(geneSymbol," - ", effect)) %>% 
+  dplyr::select(-geneSymbol, -effect) %>% 
+  dplyr::rename(SNP = SNP_id) %>%
+    group_by(SNP) %>% 
+  summarise(tf.info = paste0(tf.info, collapse=',')) %>% 
+  dplyr::rename(snp = SNP)
+
+high.conf.snp.df <- high.conf.snp.df %>% left_join(., motif.breaks.tbl)
+```
+
+add nearest gene
+
+```{r}
+seqlevelsStyle(finemap.gr) <- "UCSC"
+snp.nearest.gene <- nearest(final.gr.og, gene.annots)
+snp.nearest.gene.df <- data.frame(snp = final.gr.og$snp, nearestGene = gene.annots$gene_name[snp.nearest.gene])
+high.conf.snp.df <- high.conf.snp.df %>% left_join(., snp.nearest.gene.df, on='snp')
+```
+
+
 SNP-level table at >20% PIP
 
 ```{r}
 high.conf.snp.df %>% 
-    dplyr::select(-weight, -frac_pip, -locus) %>% 
-    dplyr::rename(SNP = snp, `b37 bp` = pos, PIP = pip, `Gene Linked` = gene_name, 
-                  `Gene PIP`=gene_pip, `Link Method`=category, `Distance to Gene`=dist, `Chromatin status`=annots) %>% 
+    dplyr::select(-weight, -frac_pip) %>% 
+    dplyr::rename(SNP = snp, `b37 bp` = pos, REF=ref, ALT=alt, PIP = pip, `Gene Linked` = gene_name, 
+                  `Gene PIP`=gene_pip, `Link Method`=category, `Distance to Gene`=dist, `Chromatin status`=annots,
+                  FetalHeart_DNase=`FetalHeart_E083-DNase_hg19_cleaned_narrowPeak.gz`,
+                  AdultHeart_H3K27ac=H3K27ac_heart_concat,
+                  FGT_ChIPseq=FGT_ChIP_lifted_from_mm10,
+                  motif_break_strong = tf.info,
+                  `Nearest Gene` = nearestGene) %>% 
     mutate(PIP = round(PIP, 3), `Gene PIP` = round(`Gene PIP`, 3)) %>% 
     arrange(chr, `b37 bp`) %>% 
-    readr::write_csv('../GWAS/aFib_Finemapped_minPIP_0.2_06152021.csv')
+    readr::write_csv('../GWAS/aFib_Finemapped_minPIP_0.2_ActiveProm_fractionalPIP_0.02_07242021.csv')
 ```
+
+
+locus view tables
 
 ```{r}
 
@@ -325,29 +379,31 @@ locus.convert <- plyranges::join_overlap_inner(top.snp.gr, ldblocks.gr) %>% as_t
 Locus/gene view
 
 ```{r}
-gene.cumsum.df <- gene.view.df %>% 
-    group_by(locus) %>% 
-    arrange(-gene_pip) %>% mutate(gene_pip_csum = cumsum(gene_pip)) %>% 
+gene.cumsum.df <- final.mat %>% 
+    dplyr::select(locus, gene_name, gene_pip, pip) %>% 
+    distinct(locus, gene_name, .keep_all = T) %>%
+    group_by(locus) %>%
+    arrange(-gene_pip) %>%
+    mutate(gene_pip_csum = cumsum(gene_pip)) %>% 
     dplyr::slice(1:which(gene_pip_csum >= 0.8)[1]) 
 
 gene.cs.df <- gene.cumsum.df %>% 
     group_by(locus) %>% 
     summarise(gene_cs = paste0(gene_name, collapse=','), top_gene = gene_name[1], top_gene_pip = gene_pip[1])
 
-gene_view_df <- left_join(gene.cumsum.df, locus.convert, by = 'locus') %>% 
-    ungroup() %>%
-    dplyr::rename(Locus = nielsen_locus, `Gene Name` = gene_name, `Gene PIP` = gene_pip, `N SNPs Linked` = n_snps) %>%
-    dplyr::select(Locus, `Gene Name`, `Gene PIP`, `N SNPs Linked`) %>%
-    write_csv('../GWAS/aFib_Finemapped_GeneView.csv')
+top.snp.nearest.gene <- final.gr.og %>% as_tibble() %>% group_by(locus) %>% summarise(snp = snp[which.max(pip)]) %>% left_join(., snp.nearest.gene.df)
+
+gene.cs.df <- gene.cs.df %>% left_join(., top.snp.nearest.gene, by="locus") %>% dplyr::select(-snp)
 
 locus_view_df <- left_join(gene.cs.df, locus.convert, by = 'locus') %>% 
     group_by(nielsen_locus) %>% 
     summarise(`Nielsen Gene` = paste0(unique(genes_prioritized), collapse=','),
               `80% Gene Credible Set` =  paste0(unique(gene_cs), collapse=','),
               `Top Genes` = paste0(unique(top_gene), collapse=','),
-              `Top Gene PIP` = paste0(unique(top_gene_pip), collapse=',')) %>%
+              `Top Gene PIP` = paste0(unique(round(top_gene_pip,3)), collapse=','),
+              `Nearest Gene Top SNP` = paste0(unique(nearestGene), collapse = ',')) %>%
     dplyr::rename(Locus = nielsen_locus) %>%
-    write_csv('../GWAS/aFib_Finemapped_LocusView.csv')
+    write_csv('../GWAS/aFib_Finemapped_LocusView_ActiveProm_07224021.csv')
 ```
 
 ```{r}
@@ -364,7 +420,7 @@ final.mat.high.conf %>% dplyr::select(-weight, -frac_pip) %>% arrange(chr, pos, 
 ### Gene PIP distribution
 
 ```{r}
-finemap.res <- readRDS('../GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
+finemap.res <- readRDS('../GWAS/finemapping/aFib_Finemapped_GeneMapped_06262021.tble.rds')
 finemap.res <- finemap.res %>% group_by(gene_name) %>% slice(1)
 bks <- c(0.1, 0.5, 0.8, 0.9, 0.95, 0.99, 100)
 labs <- c("10-50%","50-80%","80-90%","90-95%","95-99%",">99%")
@@ -382,24 +438,23 @@ dev.off()
 
 ### Gene CS size Distribution
 
-code below is wrong, fix edge case when 1 SNP has a PIP higher than the CS limit
 ```{r}
-cs.thresh <- 0.9
-finemap.res <- readRDS('../GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
-gene.cs <- finemap.res %>%
-  dplyr::select(c(gene_name,gene_pip,locus)) %>%
-  distinct() %>%
-  group_by(locus) %>%
-  arrange(desc(gene_pip)) %>%
-  mutate(gene_pip_cumsum = cumsum(gene_pip)) %>%
-  filter(gene_pip_cumsum <= 0.9)
-gene.cs.size <- gene.cs %>% group_by(locus) %>% summarise(n = dplyr::n()) %>% .$n
+finemap.res <- readRDS('../GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07222021.gr.rds')
+gene.cumsum.df <- finemap.res %>% 
+    dplyr::select(locus, gene_name, gene_pip) %>% 
+    distinct() %>%
+    group_by(locus) %>%
+    arrange(-gene_pip) %>%
+    mutate(gene_pip_csum = cumsum(gene_pip)) %>% 
+    dplyr::slice(1:which(gene_pip_csum >= 0.8)[1]) 
+
+gene.cs.size <- gene.cumsum.df %>% group_by(locus) %>% summarise(n=dplyr::n()) %>% .$n
 
 ```
 
 ```{r, fig.width=16, fig.height=2}
-bks <- c(0, 1, 5, 10, 15, 10000)
-labs <- c("1", "2-5","6-10","11-15","16+")
+bks <- c(0, 1, 2, 3, 4, 6, 10,10000)
+labs <- c("1","2","3","4","5-6","6-10","10+")
 bin.count <- table(cut(gene.cs.size, breaks = bks, labels = labs))
 bin.count.df <- data.frame(count=as.numeric(bin.count), Size=factor(names(bin.count), levels = rev(labs)))
 bin.count.df$Size <- factor(labs, levels = labs)
@@ -425,8 +480,8 @@ finemap.genes.exp.z <- srna.exp.mat.z[intersect(finemap.res$gene_name, rownames(
 ```
 
 ```{r}
-pdf('../manuscript_figures/figure5/Finemap_Genes_Exp.pdf', width = 9, height=3)
-ComplexHeatmap::Heatmap(t(finemap.genes.exp.z), cluster_rows  = T, show_column_dend = F,
+pdf('../manuscript_figures/figure5/Finemap_Genes_Exp.pdf', width =8, height=3)
+ComplexHeatmap::Heatmap(t(finemap.genes.exp.z), cluster_rows  = T, show_row_dend = F,show_column_dend = F,
                         col = circlize::colorRamp2(c(-2, 0, 2), c("lightblue", "white","firebrick")))
 dev.off()
 ```

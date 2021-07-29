@@ -5,35 +5,11 @@ library(rtracklayer) # loading bigwigs/bed files
 library(bigsnpr) # loading genotype data from 1000Genomes for LD calculation
 library(Gviz) # main plotting
 library(GenomicInteractions) # hic plots
-source('R/analysis_utils.R')
+
 setwd('/project2/gca/aselewa/heart_atlas_project/')
+source('R/analysis_utils.R')
 celltype_ideal_order <- c("Cardiomyocyte","Smooth Muscle","Pericyte","Endothelial","Fibroblast","Neuronal", "Lymphoid","Myeloid")
 palette <- readRDS('notebooks/palette.rds')
-
-# generating gene track object for Gviz
-knownGeneObject <- function(curr.locus.gr, genome){
-    
-    ga.track <- GenomeAxisTrack()
-    if(genome == "hg19"){
-        txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene
-    }
-    if(genome == "hg38"){
-        txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene::TxDb.Hsapiens.UCSC.hg38.knownGene
-    }
-    
-    grtrack <- GeneRegionTrack(range = txdb, 
-                               genome = "hg19", 
-                               chromosome = as.character(seqnames(curr.locus.gr)),
-                               start = start(curr.locus.gr),
-                               end = end(curr.locus.gr), name = "Genes")
-    
-    symbol(grtrack) <- mapIds(org.Hs.eg.db::org.Hs.eg.db, 
-                              keys=sub("\\.\\d+$", "", gene(grtrack)), 
-                              keytype="ENTREZID", column="SYMBOL")
-    
-    symbol(grtrack) <- ifelse(is.na(symbol(grtrack)), gene(grtrack), symbol(grtrack))
-    return(grtrack)
-}
 
 # genotype data and annotations hg19
 big.snp <- bigsnpr::snp_attach('/project2/xinhe/1kg/bigsnpr/EUR_variable_1kg.rds')
@@ -53,32 +29,34 @@ finemap.gr <- finemap.gr[finemap.gr$pip > 1e-5, ]
 
 # cell-type ATAC-seq bigWigs
 bw.files <- list.files(path = 'ArchR/ArchR_heart_latest_noAtrium/GroupBigWigs/CellTypes/', pattern = 'Hg19.*', full.names = T)
+bw.files <- bw.files[c(1,2,3)]
 
 bw.list <- lapply(bw.files, function(x){rtracklayer::import(x)})
 names(bw.list) <- sub('Hg19_', '' , sub('\\.', ' ', sub('-.*', '', basename(bw.files))))
-bw.list <- lapply(celltype_ideal_order, function(x){ bw.list[[x]] })
-names(bw.list) <- celltype_ideal_order
 
 # make an ATAC track for each cell type
 atac.tracks <- lapply(names(bw.list), function(x){
-    DataTrack(range = bw.list[[x]], type = 'h', col = palette[x], name = x, showAxis=F, ylim = c(0,0.1))
+    DataTrack(range = bw.list[[x]], type = 'h', col = palette[x], name = x, showAxis=F, ylim = c(0,0.8))
 })
 
-# load bed regions for ATAC-seq peak calls
-cm.specific.calls <- rtracklayer::import('GWAS/bed_annotations_hg19/Cardiomyocyte_narrowPeaks.bed')
-seqlevelsStyle(cm.specific.calls) <- "UCSC"
-seqlevels(cm.specific.calls, pruning.mode = "coarse") <- paste0("chr",1:22)
-cm.specific.calls$score <- 1
+# rna tracks
+par.path <- '/project2/gca/Heart_Atlas/Nuc_seq/SP-HE-HE200915RNA-397RNA/output/'
+celltypes.bams <- c("Cardiomyocyte.bam","Endothelial.bam","Fibroblast.bam")
+celltypes <- sub('\\.bam','',celltypes.bams)
+bam.files <- paste0(par.path, celltypes.bams)
+names(bam.files) <- celltypes
+nreads <- c(11188127, 20603239, 16849499)
+names(nreads) <- celltypes
 
-cm.shared.calls <- rtracklayer::import('GWAS/annotations_for_finemapping_hg19/CM_shared_peaks_hg19.bed')
-seqlevelsStyle(cm.shared.calls) <- "UCSC"
-seqlevels(cm.shared.calls, pruning.mode = "coarse") <- paste0("chr",1:22)
-cm.shared.calls$score <- 1
+rna.tracks <- lapply(names(bam.files), function(x){
+    DataTrack(range = bam.files[[x]], 
+              type = 'h',
+              col = palette[x], 
+              name = x, 
+              showAxis=T, 
+              transform = function(y){y/nreads[[x]]})
+})
 
-nn.cm.calls <- rtracklayer::import('GWAS/annotations_for_finemapping_hg19/non_CM_peaks_hg19.bed')
-seqlevelsStyle(nn.cm.calls) <- "UCSC"
-seqlevels(nn.cm.calls, pruning.mode = "coarse") <- paste0("chr",1:22)
-nn.cm.calls$score <- 1
 
 # h3k27ac tracl
 h3k27 <- rtracklayer::import('ENCODE/H3k27ac_gwas_hg19/hg19_mapped/H3K27ac_heart_concat.bed')
@@ -86,12 +64,14 @@ seqlevelsStyle(h3k27) <- "UCSC"
 seqlevels(h3k27, pruning.mode = "coarse") <- paste0("chr",1:22)
 h3k27$score <- 1
 
-# make bed region tracks with Gviz
-cm.calls.track <- DataTrack(range = cm.specific.calls, type = 'h', genome = "hg19", name = "CM Specific", col = "firebrick", showAxis=FALSE, ylim = c(0,1))
-cm.shared.calls.track <- DataTrack(range = cm.shared.calls, type = 'h', genome = "hg19", name = "CM Shared", col = "firebrick", showAxis=FALSE,ylim = c(0,1))
-nn.cm.calls.track <- DataTrack(range = nn.cm.calls, type = 'h', genome = "hg19", name = "Non CM", col = "black", showAxis=FALSE,ylim = c(0,1))
-h3k27.track <- DataTrack(range = h3k27, type = 'h', genome = "hg19", name = "H3K27ac", col = "navy", showAxis=FALSE, ylim = c(0,1))
+fetal <- rtracklayer::import('ENCODE/H3k27ac_gwas_hg19/FetalHeart_E083-DNase_hg19_cleaned_narrowPeak.bed.gz')
+seqlevelsStyle(fetal) <- "UCSC"
+seqlevels(fetal, pruning.mode = "coarse") <- paste0("chr",1:22)
+fetal$score <- 1
 
+# make bed region tracks with Gviz
+h3k27.track <- DataTrack(range = h3k27, type = "h", genome = "hg19", name = "H3K27ac", col = "navy", showAxis=FALSE, ylim = c(0,1))
+fetal.track <- DataTrack(range = fetal, type="h", geome="hg19", name = "FetalDHS", col="gray", showAxis=FALSE, ylim=c(0,1))
 
 # prepare HiC/coacc track data
 pcHic <- readRDS('HiC/iPSC_CM_pcHiC_protein_Hg19.gr.rds') %>% as_tibble()
@@ -101,9 +81,9 @@ promoter.pcHiC.gr <- GRanges(seqnames = pcHic$promoter_chr, ranges = IRanges(sta
 pchic.obj <- GenomicInteractions::GenomicInteractions(anchor1 = enhancer.pcHiC.gr, anchor2 = promoter.pcHiC.gr)
 pchic.obj$counts <- round(pchic.obj$anchor1.score)
 
-enhancer.coaccess <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coaccess_corr_0.5_maxDist_1Mb_enhancers_hg19.gr.rds') %>% as_tibble() %>% 
+enhancer.coaccess <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coacc_ENHANCERS_AllCellTypes_overlapCutoff50_k200_corr_cut_-1_maxDist_1Mb_hg19.gr.rds') %>% as_tibble() %>% 
     dplyr::select(enhancer_chr, enhancer_start, enhancer_end, correlation, idx, gene_name) 
-promoter.coacc <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coaccess_corr_0.5_maxDist_1Mb_promoters_hg19.gr.rds') %>% as_tibble() %>% 
+promoter.coacc <- readRDS('ArchR/ArchR_heart_latest_noAtrium/CoAccessibility/Coacc_PROMOTERS_AllCellTypes_overlapCutoff50_k200_corr_cut_-1_maxDist_1Mb_hg19.gr.rds') %>% as_tibble() %>% 
     dplyr::select(promoter_chr, promoter_start, promoter_end, idx)
 coacc.df <- enhancer.coaccess %>% inner_join(., promoter.coacc, on = 'idx')
 
@@ -111,17 +91,18 @@ enhancer.coacc.df <- GRanges(seqnames = coacc.df$enhancer_chr, ranges = IRanges(
 promoter.coacc.df <- GRanges(seqnames = coacc.df$promoter_chr, ranges = IRanges(start = coacc.df$promoter_start, end = coacc.df$promoter_end))
 
 coacc.obj <- GenomicInteractions::GenomicInteractions(anchor1 = enhancer.coacc.df, anchor2 = promoter.coacc.df)
+coacc.obj <- coacc.obj[coacc.obj$anchor1.corr > 0.5,]
 coacc.obj$counts <- round(100*(coacc.obj$anchor1.corr))
 
 # actual plotting
-final.mat <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped.tble.rds')
+final.mat <- readRDS('GWAS/finemapping/aFib_Finemapped_GeneMapped_ActivePromoter_07242021.gr.rds')
 high.conf.snp.df <- final.mat %>% dplyr::filter(pip > 0.2) %>% group_by(snp) %>% arrange(-gene_pip) %>% dplyr::slice(1) 
 gene.gr <- gene.annots$genes[match(high.conf.snp.df$gene_name, gene.annots$genes$gene_name),]
 gene.gr.tss <- GRanges(seqnames = seqnames(gene.gr), ranges = IRanges(start = ifelse(strand(gene.gr)=="+", start(gene.gr), end(gene.gr))), symbol = gene.gr$gene_name)
 high.conf.snp.df$gene.start.tss <- start(gene.gr.tss)
 
 #genes.of.interest <- c("TBX5","ETV1","PLN","PITX2","HCN4","NKX2-5","PRRX1","TTN","SCN10A","FGF5","HAND2","CAMK2B","NFKB2","GATA4")
-genes.of.interest <- 'TBX5'
+genes.of.interest <- 'CAMK2D'
 locus.snp.dist <- high.conf.snp.df %>% 
     filter(gene_name %in% genes.of.interest) %>% 
     group_by(locus) %>% 
@@ -137,7 +118,7 @@ for(l in 1:nrow(locus.snp.dist)){
     pip.df <- prior_res[prior_res$locus == LOCUS,] 
     snp.p <- locus.snp.dist$pos[l]
     
-    ext <- 25000
+    ext <- 24000
     if(distToTSS < 0){ #snp is upstream
         ss <- snp.p - ext
         ee <- snp.p + abs(distToTSS) + ext
@@ -176,9 +157,10 @@ for(l in 1:nrow(locus.snp.dist)){
     
     # hic and/or co-accessibility track, focused on the current region and only links with current gene 
     pchic.obj.filt <- pchic.obj[which(pchic.obj$anchor1.gene == locus.snp.dist$gene_name[l]),]
-    hic.track <- InteractionTrack(pchic.obj, name = "pcHiC")
+    hic.track <- InteractionTrack(pchic.obj.filt, name = "pcHiC")
+    
     coacc.obj.filt <- coacc.obj[which(coacc.obj$anchor1.gene == locus.snp.dist$gene_name[l]),]
-    coacc.track <- InteractionTrack(coacc.obj, name = "Coaccess")
+    coacc.track <- InteractionTrack(coacc.obj.filt, name = "Coaccess")
     
     dpars <- list(col.interactions="red", 
                   col.anchors.fill ="blue", 
@@ -194,7 +176,7 @@ for(l in 1:nrow(locus.snp.dist)){
     displayPars(coacc.track) <- dpars
     
     # put all tracks into a list
-    list.of.tracks <- c(pval.track, pip.track, atac.tracks, h3k27.track, gene.track.track, coacc.track, axisTrack)
+    list.of.tracks <- c(pval.track, pip.track, atac.tracks, h3k27.track, gene.track.track, hic.track, axisTrack)
     
     # highlight a particular SNP
     ht1 <- HighlightTrack(trackList = list.of.tracks, 
@@ -202,14 +184,14 @@ for(l in 1:nrow(locus.snp.dist)){
                           chromosome = as.character(seqnames(curr.locus.gr)), col = 'pink')
     
     # plot
-    pdf(paste0('manuscript_figures/figure5/',locus.snp.dist$gene_name[l],'_gviz_tracks_yaxis.pdf'), width=8, height=5)
+    pdf(paste0('manuscript_figures/figure5/',locus.snp.dist$gene_name[l],'_2_gviz_tracks_yaxis.pdf'), width=12, height=8)
     plotTracks(ht1,
                chromosome = as.character(seqnames(curr.locus.gr)), 
                transcriptAnnotation = "symbol", 
                collapseTranscripts= 'longest', 
                from = start(curr.locus.gr), 
                to = end(curr.locus.gr),
-               sizes = c(1.2, 0.5, rep(0.2, 3), 0.1, 0.5, 0.5, 0.6),
+               sizes = c(1, 0.4, rep(0.2, 3), 0.1, 0.5, 1, 0.4),
                panel.only = F)
     dev.off()
     
