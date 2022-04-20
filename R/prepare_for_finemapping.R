@@ -28,7 +28,7 @@ system('rm torus_annotations.txt.gz')
 system('rm torus_zscore.txt.gz')
 
 # add Torus PIPs to normalized GWAS and split by locus
-sumstats_finemap <- PrepareSusieData(sumstats,torus_pip = snp_pip, torus_fdr = torus.result.fdr, fdr_thresh = 0.1)
+sumstats_finemap <- PrepareSusieData(sumstats,torus_pip = snp_torus_pip, torus_fdr = torus.result.fdr, fdr_thresh = 0.1)
 
 prnt('Will finemap this many loci:')
 print(length(unique(sumstats_finemap$locus)))
@@ -36,9 +36,9 @@ print(length(unique(sumstats_finemap$locus)))
 # save each loci to its own RDS
 loci <- unique(sumstats_finemap$locus)
 for(l in loci){
-  curr.sumtats <- sumstats[sumstats$locus == l,]
-  saveRDS(paste0('GWAS/finemapping/locus_files_finemapping/aFib_SignifLoci_',l,'.df.rds'))
+  curr.sumtats <- sumstats_finemap[sumstats_finemap$locus == l,]
+  saveRDS(curr.sumtats, file=paste0('GWAS/finemapping/locus_files_finemapping/aFib_SignifLoci_',l,'.df.rds'))
 }
 
-# run finemapping on sbatch using R/run_finemapping.R script on each output from above
+# run finemapping on sbatch using R/run_finemapping.R script on each locus saved above
 
